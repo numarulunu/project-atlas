@@ -36,3 +36,18 @@ def test_scan_skips_stale_file_evidence(tmp_path: Path, monkeypatch) -> None:
     result = scan_repo(repo)
     assert [item.path for item in result.files] == ["module.py"]
     assert result.evidence == []
+
+def test_scan_skips_local_runtime_and_cache_folders(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    (repo / ".atlas").mkdir(parents=True)
+    (repo / "dashboard" / ".vite" / "deps").mkdir(parents=True)
+    (repo / ".superpowers" / "brainstorm").mkdir(parents=True)
+    (repo / "app").mkdir()
+    (repo / ".atlas" / "runtime.json").write_text("{}\n", encoding="utf-8")
+    (repo / "dashboard" / ".vite" / "deps" / "cache.js").write_text("export const cache = true;\n", encoding="utf-8")
+    (repo / ".superpowers" / "brainstorm" / "mockup.html").write_text("<p>mock</p>\n", encoding="utf-8")
+    (repo / "app" / "main.py").write_text("def run() -> None:\n    pass\n", encoding="utf-8")
+
+    result = scan_repo(repo)
+
+    assert [item.path for item in result.files] == ["app/main.py"]

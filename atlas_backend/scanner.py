@@ -11,6 +11,9 @@ LOGGER = logging.getLogger(__name__)
 
 IGNORED_DIRS = {
     ".git",
+    ".atlas",
+    ".superpowers",
+    ".vite",
     "node_modules",
     "__pycache__",
     ".pytest_cache",

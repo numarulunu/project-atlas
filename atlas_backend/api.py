@@ -71,6 +71,7 @@ def create_app() -> FastAPI:
             "head_commit": scan.head_commit,
             "file_count": len(scan.files),
             "modules": [asdict(module) for module in modules],
+            "graph": asdict(build_module_graph(scan, modules)),
         }
 
     @app.post("/api/packet/preview")

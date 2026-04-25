@@ -67,3 +67,11 @@ def test_prompt_build_endpoint_returns_trigger_prompt(sample_repo: Path) -> None
     assert body["destructive_actions_allowed"] is False
     assert "$smac" in body["prompt"]
     assert "Main engine" in body["prompt"]
+
+def test_scan_response_includes_visual_graph(sample_repo: Path) -> None:
+    response = TestClient(create_app()).get("/api/repo/scan", params={"repo_path": str(sample_repo)})
+    assert response.status_code == 200
+    body = response.json()
+    assert "graph" in body
+    assert any(node["id"] == "python-core" for node in body["graph"]["nodes"])
+    assert any(link["source"] == "tests" and link["target"] == "python-core" for link in body["graph"]["links"])
