@@ -105,6 +105,19 @@ const scanResponse = {
         files: ['app/core/engine.py'],
         metadata: { path: 'app/core/engine.py' },
       },
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `file:app/core/dense-${index}.py`,
+        label: `dense-${index}.py`,
+        description: 'Python source file.',
+        safety_label: 'Known area',
+        x: 14,
+        y: 86,
+        kind: 'file',
+        layer: 'files',
+        module_id: 'python-core',
+        files: [`app/core/dense-${index}.py`],
+        metadata: { path: `app/core/dense-${index}.py` },
+      })),
       {
         id: 'tool:npm:react',
         label: 'react',
@@ -186,6 +199,18 @@ function stubFetch() {
         }),
       });
     }
+    if (url === '/api/ai/map-review') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          markdown: '$mastermind\nReview this Project Atlas map.',
+          prompt: '$mastermind\nReview this Project Atlas map.',
+          trigger_label: 'Copy AI review prompt',
+          destructive_actions_allowed: false,
+          sends_code_automatically: false,
+        }),
+      });
+    }
     if (url === '/api/projects') {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(projectsResponse) });
     }
@@ -255,5 +280,39 @@ describe('App', () => {
       '/api/prompt/build',
       expect.objectContaining({ body: expect.stringContaining('"module_name":"frontend"') }),
     ));
+  });
+
+  it('spreads dense layer nodes instead of stacking duplicated coordinates', async () => {
+    stubFetch();
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Real App')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Real App'));
+
+    await waitFor(() => expect(screen.getByText('Project map')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Files/ }));
+
+    const denseNodes = screen.getAllByRole('button', { name: /dense-/ });
+    const positions = new Set(denseNodes.map((node) => `${node.style.left}:${node.style.top}`));
+    expect(denseNodes).toHaveLength(8);
+    expect(positions.size).toBe(8);
+  });
+
+  it('builds an AI map-review prompt without sending code automatically', async () => {
+    const fetchMock = stubFetch();
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Real App')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Real App'));
+
+    await waitFor(() => expect(screen.getByText('Project map')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('AI review map'));
+
+    await waitFor(() => expect(screen.getByLabelText('AI map review prompt')).toBeInTheDocument());
+    expect(screen.getByText('AI prompt copied. Paste it into Claude or Codex.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/ai/map-review',
+      expect.objectContaining({ body: expect.stringContaining('real-app') }),
+    );
   });
 });

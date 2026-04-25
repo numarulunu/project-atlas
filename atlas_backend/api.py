@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from atlas_backend.ai_analysis import build_ai_map_review_prompt
 from atlas_backend.config import default_config
 from atlas_backend.logging_config import configure_logging
 from atlas_backend.graph import build_module_graph
@@ -40,10 +41,14 @@ class PromptBuildRequest(BaseModel):
     mode: str = "diagnose_bug"
 
 
+class AiMapReviewRequest(BaseModel):
+    repo_path: str | None = None
+
+
 def create_app() -> FastAPI:
     config = default_config()
     configure_logging(config.log_path)
-    app = FastAPI(title="Project Atlas", version="0.4.0")
+    app = FastAPI(title="Project Atlas", version="0.4.1")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -90,6 +95,15 @@ def create_app() -> FastAPI:
         scan = scan_repo(Path(request.repo_path))
         module = _find_module(scan, request.module_name)
         prompt = build_sniper_prompt(scan, module, request.mode)
+        return {"markdown": prompt.markdown, **prompt.data}
+
+    @app.post("/api/ai/map-review")
+    def ai_map_review(request: AiMapReviewRequest) -> dict[str, object]:
+        if not request.repo_path:
+            raise HTTPException(status_code=400, detail="Choose a project folder first.")
+        scan = scan_repo(Path(request.repo_path))
+        modules = infer_modules(scan)
+        prompt = build_ai_map_review_prompt(scan, modules, build_module_graph(scan, modules))
         return {"markdown": prompt.markdown, **prompt.data}
 
     return app

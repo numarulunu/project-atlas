@@ -150,6 +150,12 @@ h2 {
   padding-top: 18px;
 }
 
+.map-column {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
 .panel {
   min-width: 0;
   min-height: 520px;
@@ -480,7 +486,7 @@ h2 {
 .module-map {
   position: relative;
   min-height: 540px;
-  overflow: hidden;
+  overflow: auto;
   border: 1px solid #d9d9d4;
   border-radius: 8px;
   background:
@@ -488,6 +494,11 @@ h2 {
     linear-gradient(90deg, #ecece7 1px, transparent 1px),
     #fbfbfa;
   background-size: 28px 28px;
+}
+
+.map-canvas {
+  position: relative;
+  min-width: 100%;
 }
 
 .map-lines {
@@ -500,16 +511,16 @@ h2 {
 
 .map-lines line {
   stroke: #5f676d;
-  stroke-width: 0.45;
+  stroke-width: 1.2;
   stroke-linecap: round;
 }
 
 .map-lines text {
   paint-order: stroke;
   stroke: #fbfbfa;
-  stroke-width: 4px;
+  stroke-width: 7px;
   fill: #252525;
-  font-size: 3.6px;
+  font-size: 12px;
   font-weight: 900;
   text-anchor: middle;
   dominant-baseline: central;
@@ -517,18 +528,27 @@ h2 {
 
 .map-node {
   position: absolute;
-  width: clamp(150px, 20vw, 230px);
-  min-height: 112px;
+  min-height: 104px;
   display: grid;
   gap: 6px;
   transform: translate(-50%, -50%);
-  padding: 12px;
+  padding: 10px;
   border: 1px solid #cfcfca;
   border-radius: 8px;
   background: #ffffff;
   color: #151515;
   text-align: left;
   box-shadow: 0 10px 24px rgba(15, 15, 15, 0.08);
+}
+
+.map-node.compact {
+  min-height: 78px;
+  align-content: center;
+  gap: 5px;
+}
+
+.map-node.compact .node-copy {
+  display: none;
 }
 
 .map-node:hover,
@@ -544,6 +564,7 @@ h2 {
 .node-title {
   font-weight: 900;
   overflow-wrap: anywhere;
+  line-height: 1.15;
 }
 
 .node-copy {
@@ -587,6 +608,16 @@ h2 {
 }
 .trigger-panel {
   min-height: 520px;
+}
+
+.ai-review-panel {
+  min-height: auto;
+}
+
+.ai-review-copy {
+  max-width: 760px;
+  color: #595959;
+  line-height: 1.45;
 }
 
 .target-card {
@@ -662,6 +693,24 @@ h2 {
   font-size: 1.02rem;
 }
 
+.secondary-action {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #151515;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #151515;
+  font-weight: 900;
+}
+
+.secondary-action:hover {
+  background: #f1f1ef;
+}
+
 .trigger-status {
   margin: 10px 0 0;
   line-height: 1.45;
@@ -685,6 +734,21 @@ h2 {
 .prompt-output textarea {
   width: 100%;
   min-height: 260px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #deded9;
+  border-radius: 8px;
+  background: #111111;
+  color: #f7f7f2;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.ai-review-output {
+  width: 100%;
+  min-height: 180px;
+  margin-top: 12px;
   resize: vertical;
   padding: 12px;
   border: 1px solid #deded9;

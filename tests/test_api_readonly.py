@@ -68,6 +68,20 @@ def test_prompt_build_endpoint_returns_trigger_prompt(sample_repo: Path) -> None
     assert "$smac" in body["prompt"]
     assert "Main engine" in body["prompt"]
 
+
+def test_ai_map_review_endpoint_returns_readonly_prompt(sample_repo: Path) -> None:
+    response = TestClient(create_app()).post(
+        "/api/ai/map-review",
+        json={"repo_path": str(sample_repo)},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["destructive_actions_allowed"] is False
+    assert body["sends_code_automatically"] is False
+    assert body["trigger_label"] == "Copy AI review prompt"
+    assert "Project Atlas map review" in body["prompt"]
+    assert "app/core/engine.py" in body["prompt"]
+
 def test_scan_response_includes_visual_graph(sample_repo: Path) -> None:
     response = TestClient(create_app()).get("/api/repo/scan", params={"repo_path": str(sample_repo)})
     assert response.status_code == 200

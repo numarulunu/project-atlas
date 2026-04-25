@@ -1,6 +1,7 @@
 import { Folder, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { listProjects, scanRepo } from './api';
+import { AiMapReview } from './components/AiMapReview';
 import { ModuleMap } from './components/ModuleMap';
 import { RepoHeader } from './components/RepoHeader';
 import { SniperTrigger } from './components/SniperTrigger';
@@ -141,7 +142,10 @@ export default function App() {
         </section>
       ) : (
         <div className="dashboard-grid">
-          <ModuleMap graph={graph} modules={modules} selectedName={selectedModule?.name ?? selectedName} onSelect={setSelectedName} />
+          <div className="map-column">
+            <ModuleMap graph={graph} modules={modules} selectedName={selectedModule?.name ?? selectedName} onSelect={setSelectedName} />
+            <AiMapReview repoPath={repoPath} />
+          </div>
           {selectedModule ? (
             <SniperTrigger repoPath={repoPath} module={selectedModule} />
           ) : (

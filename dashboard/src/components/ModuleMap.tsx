@@ -17,6 +17,19 @@ type ModuleMapProps = {
   onSelect: (name: string) => void;
 };
 
+type PositionedNode = ModuleGraphNode & {
+  renderX: number;
+  renderY: number;
+};
+
+type LayerLayout = {
+  nodes: PositionedNode[];
+  nodeById: Map<string, PositionedNode>;
+  width: number;
+  height: number;
+  nodeWidth: number;
+};
+
 export function ModuleMap({ graph, modules, selectedName, onSelect }: ModuleMapProps) {
   const [activeLayer, setActiveLayer] = useState('overview');
   const nodes = useMemo(() => (graph?.nodes.length ? graph.nodes : fallbackNodes(modules)), [graph, modules]);
@@ -30,6 +43,7 @@ export function ModuleMap({ graph, modules, selectedName, onSelect }: ModuleMapP
     if (nodeById.has(link.target)) visibleNodeIds.add(link.target);
   }
   const visibleNodes = nodes.filter((node) => visibleNodeIds.has(node.id));
+  const layout = useMemo(() => layoutLayerNodes(visibleNodes, activeLayer), [visibleNodes, activeLayer]);
   const activeLayerLabel = LAYERS.find((layer) => layer.id === activeLayer)?.label ?? 'Overview';
 
   return (
@@ -56,31 +70,32 @@ export function ModuleMap({ graph, modules, selectedName, onSelect }: ModuleMapP
         <span>{visibleNodes.length} nodes shown</span>
       </div>
       <div className="module-map" aria-label="Visual module map">
-        <svg className="map-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <div className="map-canvas" style={{ width: `${layout.width}px`, height: `${layout.height}px` }}>
+        <svg className="map-lines" viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" aria-hidden="true">
           {visibleLinks.map((link) => {
-            const source = nodeById.get(link.source);
-            const target = nodeById.get(link.target);
+            const source = layout.nodeById.get(link.source);
+            const target = layout.nodeById.get(link.target);
             if (!source || !target || !visibleNodeIds.has(source.id) || !visibleNodeIds.has(target.id)) return null;
-            const midX = (source.x + target.x) / 2;
-            const midY = (source.y + target.y) / 2;
+            const midX = (source.renderX + target.renderX) / 2;
+            const midY = (source.renderY + target.renderY) / 2;
             return (
               <g key={`${link.source}-${link.target}-${link.label}`}>
-                <line x1={source.x} y1={source.y} x2={target.x} y2={target.y} />
+                <line x1={source.renderX} y1={source.renderY} x2={target.renderX} y2={target.renderY} />
                 <text x={midX} y={midY}>{link.label}</text>
               </g>
             );
           })}
         </svg>
-        {visibleNodes.map((node) => {
+        {layout.nodes.map((node) => {
           const targetName = node.module_id ?? node.id;
           const selected = targetName === selectedName || node.id === selectedName;
           return (
             <button
-              className={`map-node${selected ? ' selected' : ''}`}
+              className={`map-node${activeLayer === 'overview' ? '' : ' compact'}${selected ? ' selected' : ''}`}
               type="button"
               key={node.id}
               onClick={() => onSelect(targetName)}
-              style={{ left: `${node.x}%`, top: `${node.y}%` }}
+              style={{ left: `${node.renderX}px`, top: `${node.renderY}px`, width: `${layout.nodeWidth}px` }}
               aria-label={`${node.label}: ${node.description}`}
             >
               <span className="node-title">{node.label}</span>
@@ -92,11 +107,48 @@ export function ModuleMap({ graph, modules, selectedName, onSelect }: ModuleMapP
             </button>
           );
         })}
+        </div>
         {!visibleNodes.length ? <div className="map-empty">No app parts found in this layer yet.</div> : null}
       </div>
       <div className="map-note">Click a node to aim SMAC at that exact part.</div>
     </section>
   );
+}
+
+function layoutLayerNodes(nodes: ModuleGraphNode[], layer: string): LayerLayout {
+  const nodeWidth = layer === 'overview' ? 190 : 164;
+  const rowHeight = layer === 'overview' ? 150 : 112;
+  const columnGap = layer === 'overview' ? 110 : 72;
+  const marginX = 64;
+  const marginY = 64;
+  const columns = columnCount(layer, nodes.length);
+  const rows = Math.max(1, Math.ceil(nodes.length / columns));
+  const width = Math.max(760, marginX * 2 + columns * nodeWidth + (columns - 1) * columnGap);
+  const height = Math.max(420, marginY * 2 + rows * rowHeight);
+  const positioned = nodes.map((node, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    return {
+      ...node,
+      renderX: marginX + nodeWidth / 2 + column * (nodeWidth + columnGap),
+      renderY: marginY + rowHeight / 2 + row * rowHeight,
+    };
+  });
+  return {
+    nodes: positioned,
+    nodeById: new Map(positioned.map((node) => [node.id, node])),
+    width,
+    height,
+    nodeWidth,
+  };
+}
+
+function columnCount(layer: string, nodeCount: number): number {
+  if (nodeCount <= 2) return Math.max(1, nodeCount);
+  if (layer === 'overview') return Math.min(3, nodeCount);
+  if (layer === 'risk') return Math.min(3, nodeCount);
+  if (layer === 'pipelines') return Math.min(3, nodeCount);
+  return Math.min(5, Math.max(3, Math.ceil(Math.sqrt(nodeCount))));
 }
 
 function layerCounts(nodes: ModuleGraphNode[]): Record<string, number> {

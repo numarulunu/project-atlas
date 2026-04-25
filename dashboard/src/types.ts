@@ -90,3 +90,11 @@ export type PacketResponse = {
   destructive_actions_allowed: boolean;
   needs_full_smac: boolean;
 };
+
+export type AiMapReviewResponse = {
+  prompt: string;
+  markdown: string;
+  trigger_label: string;
+  destructive_actions_allowed: boolean;
+  sends_code_automatically: boolean;
+};

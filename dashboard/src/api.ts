@@ -1,4 +1,4 @@
-import type { PacketResponse, ProjectListResponse, PromptBuildResponse, PromptMode, ScanResponse } from './types';
+import type { AiMapReviewResponse, PacketResponse, ProjectListResponse, PromptBuildResponse, PromptMode, ScanResponse } from './types';
 
 export async function listProjects(): Promise<ProjectListResponse> {
   const response = await fetch('/api/projects');
@@ -29,5 +29,15 @@ export async function previewPacket(repoPath: string, moduleName: string, questi
     body: JSON.stringify({ repo_path: repoPath, module_name: moduleName, question }),
   });
   if (!response.ok) throw new Error('Packet preview failed');
+  return response.json();
+}
+
+export async function buildAiMapReviewPrompt(repoPath: string): Promise<AiMapReviewResponse> {
+  const response = await fetch('/api/ai/map-review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+  if (!response.ok) throw new Error('AI review prompt failed');
   return response.json();
 }

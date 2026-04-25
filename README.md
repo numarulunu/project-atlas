@@ -31,6 +31,8 @@ Open `http://127.0.0.1:5177`.
 6. Click `Pull trigger`.
 7. Atlas copies a ready `$smac` prompt with the right files, avoid zones, checks, tools, pipelines, nearby connections, and escalation rules.
 
+Use `AI review map` when the map needs a smarter pass. Atlas builds a prompt from map facts so Claude or Codex can suggest better names, groups, missing links, and uncertain zones. Atlas does not send code automatically.
+
 Atlas does not run agents silently. You paste the prompt into Claude or Codex and send it.
 
 ## Friend Install Notes
