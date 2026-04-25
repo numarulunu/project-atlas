@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from atlas_backend.config import default_config
 from atlas_backend.logging_config import configure_logging
+from atlas_backend.graph import build_module_graph
 from atlas_backend.models import ProjectCandidate
 from atlas_backend.module_infer import infer_modules
 from atlas_backend.packet import compile_smac_packet
@@ -42,7 +43,7 @@ class PromptBuildRequest(BaseModel):
 def create_app() -> FastAPI:
     config = default_config()
     configure_logging(config.log_path)
-    app = FastAPI(title="Project Atlas", version="0.2.1")
+    app = FastAPI(title="Project Atlas", version="0.3.0")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -104,6 +105,7 @@ def project_search_roots(primary_root: Path | None = None) -> list[Path]:
     home = Path.home()
     roots = [root for root in [
         primary_root,
+        home / "Desktop" / "Claude",
         home / "Projects",
         home / "Desktop",
         home / "Documents",

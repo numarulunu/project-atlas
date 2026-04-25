@@ -144,7 +144,7 @@ h2 {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.4fr);
+  grid-template-columns: minmax(440px, 1.35fr) minmax(340px, 0.85fr);
   gap: 16px;
   align-items: start;
   padding-top: 18px;
@@ -415,6 +415,113 @@ h2 {
 }
 
 
+
+.map-panel {
+  min-height: 640px;
+}
+
+.module-map {
+  position: relative;
+  min-height: 540px;
+  overflow: hidden;
+  border: 1px solid #d9d9d4;
+  border-radius: 8px;
+  background:
+    linear-gradient(#ecece7 1px, transparent 1px),
+    linear-gradient(90deg, #ecece7 1px, transparent 1px),
+    #fbfbfa;
+  background-size: 28px 28px;
+}
+
+.map-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.map-lines line {
+  stroke: #5f676d;
+  stroke-width: 0.45;
+  stroke-linecap: round;
+}
+
+.map-lines text {
+  paint-order: stroke;
+  stroke: #fbfbfa;
+  stroke-width: 4px;
+  fill: #252525;
+  font-size: 3.6px;
+  font-weight: 900;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.map-node {
+  position: absolute;
+  width: clamp(150px, 20vw, 230px);
+  min-height: 112px;
+  display: grid;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+  padding: 12px;
+  border: 1px solid #cfcfca;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #151515;
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(15, 15, 15, 0.08);
+}
+
+.map-node:hover,
+.map-node.selected {
+  border-color: #151515;
+  background: #f1f1ef;
+}
+
+.map-node.selected {
+  box-shadow: 0 0 0 3px #151515, 0 14px 28px rgba(15, 15, 15, 0.14);
+}
+
+.node-title {
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.node-copy {
+  color: #595959;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.node-chip {
+  width: fit-content;
+  padding: 4px 7px;
+  border: 1px solid #d9d9d4;
+  border-radius: 999px;
+  background: #fbfbfa;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.map-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #595959;
+  font-weight: 800;
+  text-align: center;
+}
+
+.map-note {
+  margin-top: 10px;
+  color: #595959;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
 .trigger-panel {
   min-height: 520px;
 }

@@ -1,6 +1,6 @@
 # Project Atlas
 
-Read-only localhost dashboard that maps one local codebase into plain-English app parts and builds scoped SMAC sniper prompts.
+Read-only localhost dashboard that maps one local codebase into a visual app map and builds scoped SMAC sniper prompts.
 
 Safety: no auto-fix, no auto-delete, no auto-reorganize.
 
@@ -23,16 +23,18 @@ Open `http://127.0.0.1:5177`.
 
 ## How It Works
 
-1. Pick a project folder.
-2. Pick the app part you want SMAC to inspect.
-3. Pick the job: `Diagnose bug`, `Audit quality`, or `Cleanup risk`.
-4. Click `Pull trigger`.
-5. Atlas copies a ready `$smac` prompt with the right files, avoid zones, checks, and escalation rules.
+1. Atlas auto-loads real project folders from common local work areas.
+2. Pick a project folder.
+3. Atlas draws a visual map of the main app parts and their detected links.
+4. Click the node you want SMAC to inspect.
+5. Pick the job: `Diagnose bug`, `Audit quality`, or `Cleanup risk`.
+6. Click `Pull trigger`.
+7. Atlas copies a ready `$smac` prompt with the right files, avoid zones, checks, and escalation rules.
 
 Atlas does not run agents silently. You paste the prompt into Claude or Codex and send it.
 
 ## Friend Install Notes
 
-Project Atlas searches the folder above its install folder, plus common folders such as Projects, Desktop, and Documents. It does not require any machine-specific path.
+Project Atlas searches the folder above its install folder, plus common folders such as Projects, Desktop, Documents, and the shared desktop workspace. It does not require any machine-specific path.
 
 Runtime data stays under `.atlas/` and is ignored by git.

@@ -23,6 +23,27 @@ export type AtlasModule = {
   evidence?: EvidenceRecord[];
 };
 
+export type ModuleGraphNode = {
+  id: string;
+  label: string;
+  description: string;
+  safety_label: string;
+  x: number;
+  y: number;
+};
+
+export type ModuleGraphLink = {
+  source: string;
+  target: string;
+  label: string;
+  reason: string;
+};
+
+export type ModuleGraph = {
+  nodes: ModuleGraphNode[];
+  links: ModuleGraphLink[];
+};
+
 export type ProjectCandidate = {
   name: string;
   path: string;
@@ -32,6 +53,7 @@ export type ProjectCandidate = {
 
 export type ProjectListResponse = {
   home_root: string;
+  home_roots?: string[];
   projects: ProjectCandidate[];
 };
 
@@ -41,6 +63,7 @@ export type ScanResponse = {
   head_commit: string | null;
   file_count: number;
   modules: AtlasModule[];
+  graph: ModuleGraph;
 };
 
 export type PromptMode = 'diagnose_bug' | 'audit_quality' | 'cleanup_risk';

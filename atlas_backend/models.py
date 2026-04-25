@@ -47,6 +47,30 @@ class ModuleHypothesis:
 
 
 @dataclass(frozen=True)
+class ModuleGraphNode:
+    id: str
+    label: str
+    description: str
+    safety_label: str
+    x: int
+    y: int
+
+
+@dataclass(frozen=True)
+class ModuleGraphLink:
+    source: str
+    target: str
+    label: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class ModuleGraph:
+    nodes: list[ModuleGraphNode]
+    links: list[ModuleGraphLink]
+
+
+@dataclass(frozen=True)
 class PacketPreview:
     markdown: str
     data: dict[str, object]

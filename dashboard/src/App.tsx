@@ -1,97 +1,38 @@
 import { Folder, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { listProjects, scanRepo } from './api';
-import { ModuleList } from './components/ModuleList';
+import { ModuleMap } from './components/ModuleMap';
 import { RepoHeader } from './components/RepoHeader';
 import { SniperTrigger } from './components/SniperTrigger';
-import type { AtlasModule, ProjectCandidate } from './types';
+import type { AtlasModule, ModuleGraph, ProjectCandidate } from './types';
 import './styles.css';
 
-const FALLBACK_MODULES: AtlasModule[] = [
-  {
-    name: 'python-core',
-    display_name: 'Main engine',
-    purpose: 'Core application engine and main backend implementation.',
-    simple_description: 'This is the part that does the main work of the app.',
-    confidence_label: 'Strong guess',
-    safety_label: 'Known area',
-    files: ['app/core/engine.py', 'app/core/governor.py'],
-    tests: ['tests/core/test_engine.py'],
-    confidence: 0.85,
-    freshness: 'fallback',
-    reachability: 'known',
-    evidence: [],
-  },
-  {
-    name: 'frontend',
-    display_name: 'Screen and buttons',
-    purpose: 'React user interface.',
-    simple_description: 'This is what you see and click on.',
-    confidence_label: 'Medium guess',
-    safety_label: 'Known area',
-    files: ['frontend/src/App.jsx'],
-    tests: [],
-    confidence: 0.78,
-    freshness: 'fallback',
-    reachability: 'known',
-    evidence: [],
-  },
-  {
-    name: 'docs',
-    display_name: 'Notes and instructions',
-    purpose: 'Project documentation and operating notes.',
-    simple_description: 'These files explain what the project is and how to use it.',
-    confidence_label: 'Weak guess',
-    safety_label: 'Needs big-team check',
-    files: ['README.md', 'tool_registry.md'],
-    tests: [],
-    confidence: 0.5,
-    freshness: 'fallback',
-    reachability: 'unknown',
-    evidence: [],
-  },
-];
-
-const FALLBACK_PROJECTS: ProjectCandidate[] = [
-  {
-    name: 'Sample API',
-    path: '~/Projects/sample-api',
-    description: 'Looks like an app folder',
-    looks_like_project: true,
-  },
-  {
-    name: 'Sample Dashboard',
-    path: '~/Projects/sample-dashboard',
-    description: 'Looks like an app folder',
-    looks_like_project: true,
-  },
-];
-
 export default function App() {
-  const [projects, setProjects] = useState<ProjectCandidate[]>(FALLBACK_PROJECTS);
+  const [projects, setProjects] = useState<ProjectCandidate[]>([]);
   const [modules, setModules] = useState<AtlasModule[]>([]);
+  const [graph, setGraph] = useState<ModuleGraph | null>(null);
   const [selectedName, setSelectedName] = useState('');
   const [repoPath, setRepoPath] = useState('');
   const [manualPath, setManualPath] = useState('');
   const [repoName, setRepoName] = useState('Choose a folder');
   const [fileCount, setFileCount] = useState(0);
   const [backendUnavailable, setBackendUnavailable] = useState(false);
-  const [loadingFolders, setLoadingFolders] = useState(false);
+  const [loadingFolders, setLoadingFolders] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (import.meta.env.MODE === 'test') return;
     let active = true;
     setLoadingFolders(true);
     listProjects()
       .then((result) => {
         if (!active) return;
-        setProjects(result.projects.length ? result.projects : FALLBACK_PROJECTS);
+        setProjects(result.projects);
         setBackendUnavailable(false);
       })
       .catch(() => {
         if (!active) return;
+        setProjects([]);
         setBackendUnavailable(true);
       })
       .finally(() => {
@@ -112,12 +53,12 @@ export default function App() {
     setError('');
     try {
       const result = await scanRepo(trimmedPath);
-      const nextModules = result.modules.length ? result.modules : FALLBACK_MODULES;
-      setModules(nextModules);
+      setModules(result.modules);
+      setGraph(result.graph);
       setRepoPath(result.root_path);
       setRepoName(result.repo);
       setFileCount(result.file_count);
-      setSelectedName(nextModules[0]?.name ?? '');
+      setSelectedName(result.modules[0]?.name ?? '');
       setBackendUnavailable(false);
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : 'Scan failed');
@@ -130,7 +71,7 @@ export default function App() {
     () => modules.find((module) => module.name === selectedName) ?? modules[0],
     [modules, selectedName],
   );
-  const hasScan = Boolean(selectedModule && repoPath);
+  const hasScan = Boolean(repoPath);
 
   return (
     <main className="app-shell">
@@ -159,10 +100,17 @@ export default function App() {
               </div>
             </div>
             <div className="project-list-header">
-              <h3>Common project folders</h3>
-              <span>{loadingFolders ? 'Loading folders' : `${projects.length} found`}</span>
+              <h3>Your project folders</h3>
+              <span>{loadingFolders ? 'Loading' : `${projects.length} found`}</span>
             </div>
             <div className="project-list">
+              {loadingFolders ? <div className="project-empty">Loading your project folders</div> : null}
+              {!loadingFolders && backendUnavailable ? (
+                <div className="project-empty">Could not load local projects. Paste a folder path above.</div>
+              ) : null}
+              {!loadingFolders && !backendUnavailable && !projects.length ? (
+                <div className="project-empty">No project folders found. Paste one above.</div>
+              ) : null}
               {projects.map((project) => (
                 <button className="project-row" type="button" key={project.path} onClick={() => handleScan(project.path)} disabled={scanning}>
                   <span>
@@ -179,11 +127,11 @@ export default function App() {
             <h2>What happens next</h2>
             <div className="legend-item">
               <strong>Pick a folder</strong>
-              <span>Atlas reads the project and splits it into plain-English app parts.</span>
+              <span>Atlas reads the project and draws the main app parts.</span>
             </div>
             <div className="legend-item">
-              <strong>Aim SMAC</strong>
-              <span>Choose the part and the kind of check you want.</span>
+              <strong>Click a node</strong>
+              <span>The map chooses the exact app part you want to inspect.</span>
             </div>
             <div className="legend-item">
               <strong>Pull trigger</strong>
@@ -193,8 +141,15 @@ export default function App() {
         </section>
       ) : (
         <div className="dashboard-grid">
-          <ModuleList modules={modules} selectedName={selectedModule.name} onSelect={setSelectedName} />
-          <SniperTrigger repoPath={repoPath} module={selectedModule} />
+          <ModuleMap graph={graph} modules={modules} selectedName={selectedModule?.name ?? selectedName} onSelect={setSelectedName} />
+          {selectedModule ? (
+            <SniperTrigger repoPath={repoPath} module={selectedModule} />
+          ) : (
+            <section className="panel trigger-panel" aria-label="SMAC trigger">
+              <h2>Aim SMAC</h2>
+              <p className="trigger-status">No app part is mapped yet. Try another folder or paste a more specific project path.</p>
+            </section>
+          )}
         </div>
       )}
     </main>
