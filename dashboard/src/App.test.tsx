@@ -36,6 +36,20 @@ const scanResponse = {
       evidence: [],
     },
     {
+      name: 'frontend',
+      display_name: 'Screen and buttons',
+      purpose: 'React user interface.',
+      simple_description: 'This is what you see and click on.',
+      confidence_label: 'Strong guess',
+      safety_label: 'Known area',
+      files: ['frontend/src/App.jsx'],
+      tests: ['frontend/src/App.test.jsx'],
+      confidence: 0.85,
+      freshness: 'fresh',
+      reachability: 'known',
+      evidence: [],
+    },
+    {
       name: 'tests',
       display_name: 'Safety checks',
       purpose: 'Automated verification coverage.',
@@ -59,6 +73,11 @@ const scanResponse = {
         safety_label: 'Known area',
         x: 46,
         y: 42,
+        kind: 'module',
+        layer: 'overview',
+        module_id: 'python-core',
+        files: ['app/core/engine.py'],
+        metadata: {},
       },
       {
         id: 'tests',
@@ -67,6 +86,63 @@ const scanResponse = {
         safety_label: 'Needs big-team check',
         x: 72,
         y: 28,
+        kind: 'module',
+        layer: 'overview',
+        module_id: 'tests',
+        files: ['tests/core/test_engine.py'],
+        metadata: {},
+      },
+      {
+        id: 'file:app/core/engine.py',
+        label: 'engine.py',
+        description: 'Python source file.',
+        safety_label: 'Known area',
+        x: 20,
+        y: 20,
+        kind: 'file',
+        layer: 'files',
+        module_id: 'python-core',
+        files: ['app/core/engine.py'],
+        metadata: { path: 'app/core/engine.py' },
+      },
+      {
+        id: 'tool:npm:react',
+        label: 'react',
+        description: 'npm dependency',
+        safety_label: 'External tool',
+        x: 20,
+        y: 20,
+        kind: 'tool',
+        layer: 'tools',
+        module_id: 'frontend',
+        files: ['package.json'],
+        metadata: { manifest: 'package.json' },
+      },
+      {
+        id: 'pipeline:npm:build',
+        label: 'npm run build',
+        description: 'vite build',
+        safety_label: 'Known area',
+        x: 20,
+        y: 20,
+        kind: 'script',
+        layer: 'pipelines',
+        module_id: 'frontend',
+        files: ['package.json'],
+        metadata: { source: 'package.json' },
+      },
+      {
+        id: 'risk:tests',
+        label: 'Safety checks needs review',
+        description: 'reach is unknown',
+        safety_label: 'Needs big-team check',
+        x: 20,
+        y: 20,
+        kind: 'risk',
+        layer: 'risk',
+        module_id: 'tests',
+        files: ['tests/core/test_engine.py'],
+        metadata: { reasons: 'reach is unknown' },
       },
     ],
     links: [
@@ -75,6 +151,18 @@ const scanResponse = {
         target: 'python-core',
         label: 'checks',
         reason: 'Mapped tests check this app part.',
+        kind: 'test',
+        layer: 'overview',
+        files: ['tests/core/test_engine.py'],
+      },
+      {
+        source: 'file:app/core/engine.py',
+        target: 'tool:npm:react',
+        label: 'imports',
+        reason: 'File imports this external library.',
+        kind: 'import',
+        layer: 'tools',
+        files: ['app/core/engine.py'],
       },
     ],
   },
@@ -84,6 +172,19 @@ function stubFetch() {
   const fetchMock = vi.fn((url: string) => {
     if (url.startsWith('/api/repo/scan')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(scanResponse) });
+    }
+    if (url === '/api/prompt/build') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          prompt: '$smac\nTarget: Screen and buttons',
+          markdown: '$smac\nTarget: Screen and buttons',
+          mode: 'diagnose_bug',
+          mode_label: 'Diagnose bug',
+          trigger_label: 'Pull trigger',
+          destructive_actions_allowed: false,
+        }),
+      });
     }
     if (url === '/api/projects') {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(projectsResponse) });
@@ -124,5 +225,35 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /Main engine/ })).toBeInTheDocument();
     expect(screen.getByText('checks')).toBeInTheDocument();
     expect(screen.getByText('Pull trigger')).toBeInTheDocument();
+  });
+
+  it('shows deep map layers and aims SMAC through node module ids', async () => {
+    const fetchMock = stubFetch();
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Real App')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Real App'));
+
+    await waitFor(() => expect(screen.getByText('Project map')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Tools/ }));
+    expect(screen.getByRole('button', { name: /react/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Pipelines/ }));
+    expect(screen.getByRole('button', { name: /npm run build/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Files/ }));
+    expect(screen.getByRole('button', { name: /engine.py/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Risk/ }));
+    expect(screen.getByRole('button', { name: /Safety checks needs review/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Tools/ }));
+    fireEvent.click(screen.getByRole('button', { name: /react/ }));
+    fireEvent.click(screen.getByText('Pull trigger'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/prompt/build',
+      expect.objectContaining({ body: expect.stringContaining('"module_name":"frontend"') }),
+    ));
   });
 });

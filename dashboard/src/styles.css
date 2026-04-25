@@ -420,6 +420,63 @@ h2 {
   min-height: 640px;
 }
 
+.layer-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.layer-tab {
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #d8d8d2;
+  border-radius: 8px;
+  background: #fbfbfa;
+  color: #151515;
+  font-weight: 900;
+}
+
+.layer-tab:hover,
+.layer-tab.selected {
+  border-color: #151515;
+  background: #f1f1ef;
+}
+
+.layer-tab span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.layer-tab strong {
+  min-width: 24px;
+  padding: 3px 6px;
+  border: 1px solid #cdcdc8;
+  border-radius: 999px;
+  background: #ffffff;
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.map-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #595959;
+  font-size: 0.9rem;
+}
+
+.map-summary strong {
+  color: #151515;
+}
+
 .module-map {
   position: relative;
   min-height: 540px;
@@ -504,6 +561,12 @@ h2 {
   background: #fbfbfa;
   font-size: 0.76rem;
   font-weight: 900;
+}
+
+.node-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .map-empty {

@@ -30,6 +30,11 @@ export type ModuleGraphNode = {
   safety_label: string;
   x: number;
   y: number;
+  kind: string;
+  layer: string;
+  module_id: string | null;
+  files: string[];
+  metadata: Record<string, string>;
 };
 
 export type ModuleGraphLink = {
@@ -37,6 +42,9 @@ export type ModuleGraphLink = {
   target: string;
   label: string;
   reason: string;
+  kind: string;
+  layer: string;
+  files: string[];
 };
 
 export type ModuleGraph = {

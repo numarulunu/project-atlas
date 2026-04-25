@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -54,6 +54,11 @@ class ModuleGraphNode:
     safety_label: str
     x: int
     y: int
+    kind: str = "module"
+    layer: str = "overview"
+    module_id: str | None = None
+    files: list[str] = field(default_factory=list)
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -62,6 +67,9 @@ class ModuleGraphLink:
     target: str
     label: str
     reason: str
+    kind: str = "relationship"
+    layer: str = "overview"
+    files: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

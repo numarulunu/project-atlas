@@ -43,7 +43,7 @@ class PromptBuildRequest(BaseModel):
 def create_app() -> FastAPI:
     config = default_config()
     configure_logging(config.log_path)
-    app = FastAPI(title="Project Atlas", version="0.3.0")
+    app = FastAPI(title="Project Atlas", version="0.4.0")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

@@ -1,7 +1,10 @@
-from atlas_backend.models import ModuleHypothesis, PacketPreview, ScanResult
+from atlas_backend.graph import build_module_graph
+from atlas_backend.models import ModuleGraphNode, ModuleHypothesis, PacketPreview, ScanResult
+from atlas_backend.module_infer import infer_modules
 
 MAX_INCLUDED_FILES = 40
 MAX_EXCLUDED_ROOTS = 24
+MAX_CONTEXT_ITEMS = 16
 
 MODES = {
     "diagnose_bug": {
@@ -28,6 +31,8 @@ def build_sniper_prompt(scan: ScanResult, module: ModuleHypothesis, mode: str) -
     included_set = set(module.files)
     excluded = sorted({_root_name(file.path) for file in scan.files if file.path not in included_set})[:MAX_EXCLUDED_ROOTS]
     tests = module.tests[:20]
+    graph_context = _graph_context(scan, module)
+    nearby = graph_context["upstream"] + graph_context["downstream"]
 
     prompt = f"""$smac
 
@@ -49,6 +54,15 @@ Do not wander here unless the evidence clearly forces it:
 
 Checks to run if a fix is proposed:
 {_bullet(tests) if tests else "- No mapped checks. Say that safety is lower and ask before risky edits."}
+
+Detected tools and libraries:
+{_bullet(graph_context["tools"])}
+
+Detected routes and commands:
+{_bullet(graph_context["pipelines"])}
+
+Nearby connections:
+{_bullet(nearby)}
 
 Hard safety rules:
 - Atlas maps are hints, not truth.
@@ -78,9 +92,69 @@ Output in plain English:
             "included_files": included,
             "excluded_roots": excluded,
             "tests": tests,
+            "tools": graph_context["tools"],
+            "pipelines": graph_context["pipelines"],
+            "upstream": graph_context["upstream"],
+            "downstream": graph_context["downstream"],
             "destructive_actions_allowed": False,
         },
     )
+
+
+def _graph_context(scan: ScanResult, module: ModuleHypothesis) -> dict[str, list[str]]:
+    modules = infer_modules(scan)
+    graph = build_module_graph(scan, modules)
+    node_by_id = {node.id: node for node in graph.nodes}
+    module_node_ids = {node.id for node in graph.nodes if node.id == module.name or node.module_id == module.name}
+
+    tools = [
+        _node_context_line(node)
+        for node in graph.nodes
+        if node.kind == "tool" and node.module_id == module.name
+    ]
+    pipelines = [
+        _node_context_line(node)
+        for node in graph.nodes
+        if node.layer == "pipelines" and node.module_id == module.name
+    ]
+    upstream: list[str] = []
+    downstream: list[str] = []
+
+    for link in graph.links:
+        source = node_by_id.get(link.source)
+        target = node_by_id.get(link.target)
+        if not source or not target:
+            continue
+        source_related = source.id in module_node_ids or source.module_id == module.name
+        target_related = target.id in module_node_ids or target.module_id == module.name
+        if target_related and not source_related:
+            upstream.append(f"Incoming: {source.label} {link.label} {target.label}")
+        elif source_related and not target_related:
+            downstream.append(f"Outgoing: {source.label} {link.label} {target.label}")
+
+    return {
+        "tools": _unique(tools)[:MAX_CONTEXT_ITEMS],
+        "pipelines": _unique(pipelines)[:MAX_CONTEXT_ITEMS],
+        "upstream": _unique(upstream)[:MAX_CONTEXT_ITEMS],
+        "downstream": _unique(downstream)[:MAX_CONTEXT_ITEMS],
+    }
+
+
+def _node_context_line(node: ModuleGraphNode) -> str:
+    source = node.metadata.get("manifest") or node.metadata.get("source") or (node.files[0] if node.files else "")
+    detail = node.description if node.description and node.description != node.label else ""
+    label = f"{node.label} - {detail}" if detail else node.label
+    return f"{label} ({source})" if source else label
+
+
+def _unique(items: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        if item not in seen:
+            out.append(item)
+            seen.add(item)
+    return out
 
 
 def _bullet(items: list[str]) -> str:

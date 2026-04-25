@@ -38,6 +38,7 @@ LANG_BY_SUFFIX = {
     ".yaml": "yaml",
     ".yml": "yaml",
     ".toml": "toml",
+    ".txt": "text",
 }
 IMPORT_RE = re.compile(r"(?:^import\s+.+?\s+from\s+['\"](?P<from>[^'\"]+)['\"]|^import\s+['\"](?P<bare>[^'\"]+)['\"]|require\(['\"](?P<require>[^'\"]+)['\"]\))")
 
