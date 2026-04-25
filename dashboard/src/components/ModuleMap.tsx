@@ -1,5 +1,5 @@
 import { Network } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { type CSSProperties, useMemo, useState } from 'react';
 import type { AtlasModule, ModuleGraph, ModuleGraphNode } from '../types';
 
 const LAYERS = [
@@ -17,34 +17,23 @@ type ModuleMapProps = {
   onSelect: (name: string) => void;
 };
 
-type PositionedNode = ModuleGraphNode & {
-  renderX: number;
-  renderY: number;
-};
-
-type LayerLayout = {
-  nodes: PositionedNode[];
-  nodeById: Map<string, PositionedNode>;
-  width: number;
-  height: number;
-  nodeWidth: number;
-};
-
 export function ModuleMap({ graph, modules, selectedName, onSelect }: ModuleMapProps) {
   const [activeLayer, setActiveLayer] = useState('overview');
   const nodes = useMemo(() => (graph?.nodes.length ? graph.nodes : fallbackNodes(modules)), [graph, modules]);
   const links = graph?.links ?? [];
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const counts = useMemo(() => layerCounts(nodes), [nodes]);
-  const visibleLinks = links.filter((link) => link.layer === activeLayer);
+  const visibleLinks = activeLayer === 'overview' ? links.filter((link) => link.layer === activeLayer) : [];
   const visibleNodeIds = new Set(nodes.filter((node) => node.layer === activeLayer).map((node) => node.id));
   for (const link of visibleLinks) {
     if (nodeById.has(link.source)) visibleNodeIds.add(link.source);
     if (nodeById.has(link.target)) visibleNodeIds.add(link.target);
   }
   const visibleNodes = nodes.filter((node) => visibleNodeIds.has(node.id));
-  const layout = useMemo(() => layoutLayerNodes(visibleNodes, activeLayer), [visibleNodes, activeLayer]);
+  const displayNodes = useMemo(() => summarizeLayerNodes(visibleNodes, activeLayer, modules), [visibleNodes, activeLayer, modules]);
+  const displayNodeById = useMemo(() => new Map(displayNodes.map((node) => [node.id, node])), [displayNodes]);
   const activeLayerLabel = LAYERS.find((layer) => layer.id === activeLayer)?.label ?? 'Overview';
+  const isOverview = activeLayer === 'overview';
 
   return (
     <section className="panel map-panel" aria-label="Project module map">
@@ -67,88 +56,200 @@ export function ModuleMap({ graph, modules, selectedName, onSelect }: ModuleMapP
       </div>
       <div className="map-summary">
         <strong>{activeLayerLabel}</strong>
-        <span>{visibleNodes.length} nodes shown</span>
+        <span>{displayNodes.length} {isOverview ? 'nodes' : 'groups'} shown</span>
       </div>
-      <div className="module-map" aria-label="Visual module map">
-        <div className="map-canvas" style={{ width: `${layout.width}px`, height: `${layout.height}px` }}>
-        <svg className="map-lines" viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none" aria-hidden="true">
-          {visibleLinks.map((link) => {
-            const source = layout.nodeById.get(link.source);
-            const target = layout.nodeById.get(link.target);
-            if (!source || !target || !visibleNodeIds.has(source.id) || !visibleNodeIds.has(target.id)) return null;
-            const midX = (source.renderX + target.renderX) / 2;
-            const midY = (source.renderY + target.renderY) / 2;
-            return (
-              <g key={`${link.source}-${link.target}-${link.label}`}>
-                <line x1={source.renderX} y1={source.renderY} x2={target.renderX} y2={target.renderY} />
-                <text x={midX} y={midY}>{link.label}</text>
-              </g>
-            );
-          })}
-        </svg>
-        {layout.nodes.map((node) => {
-          const targetName = node.module_id ?? node.id;
-          const selected = targetName === selectedName || node.id === selectedName;
-          return (
-            <button
-              className={`map-node${activeLayer === 'overview' ? '' : ' compact'}${selected ? ' selected' : ''}`}
-              type="button"
-              key={node.id}
-              onClick={() => onSelect(targetName)}
-              style={{ left: `${node.renderX}px`, top: `${node.renderY}px`, width: `${layout.nodeWidth}px` }}
-              aria-label={`${node.label}: ${node.description}`}
-            >
-              <span className="node-title">{node.label}</span>
-              <span className="node-copy">{node.description}</span>
-              <span className="node-chip-row">
-                <span className="node-chip">{kindLabel(node.kind)}</span>
-                <span className="node-chip">{node.safety_label}</span>
-              </span>
-            </button>
-          );
-        })}
-        </div>
-        {!visibleNodes.length ? <div className="map-empty">No app parts found in this layer yet.</div> : null}
+      <div className={`module-map${isOverview ? '' : ' grouped-map'}`} aria-label="Visual module map">
+        {isOverview ? (
+          <>
+            <svg className="map-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              {visibleLinks.map((link) => {
+                const source = displayNodeById.get(link.source);
+                const target = displayNodeById.get(link.target);
+                if (!source || !target) return null;
+                const midX = (source.x + target.x) / 2;
+                const midY = (source.y + target.y) / 2;
+                return (
+                  <g key={`${link.source}-${link.target}-${link.label}`}>
+                    <line x1={source.x} y1={source.y} x2={target.x} y2={target.y} />
+                    <text x={midX} y={midY}>{link.label}</text>
+                  </g>
+                );
+              })}
+            </svg>
+            {displayNodes.map((node) => renderNodeButton(node, selectedName, onSelect, 'map-node', { left: `${node.x}%`, top: `${node.y}%` }))}
+          </>
+        ) : (
+          <div className="map-grid">
+            {displayNodes.map((node) => renderNodeButton(node, selectedName, onSelect, 'map-card'))}
+          </div>
+        )}
+        {!displayNodes.length ? <div className="map-empty">No app parts found in this layer yet.</div> : null}
       </div>
       <div className="map-note">Click a node to aim SMAC at that exact part.</div>
     </section>
   );
 }
 
-function layoutLayerNodes(nodes: ModuleGraphNode[], layer: string): LayerLayout {
-  const nodeWidth = layer === 'overview' ? 190 : 164;
-  const rowHeight = layer === 'overview' ? 150 : 112;
-  const columnGap = layer === 'overview' ? 110 : 72;
-  const marginX = 64;
-  const marginY = 64;
-  const columns = columnCount(layer, nodes.length);
-  const rows = Math.max(1, Math.ceil(nodes.length / columns));
-  const width = Math.max(760, marginX * 2 + columns * nodeWidth + (columns - 1) * columnGap);
-  const height = Math.max(420, marginY * 2 + rows * rowHeight);
-  const positioned = nodes.map((node, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    return {
-      ...node,
-      renderX: marginX + nodeWidth / 2 + column * (nodeWidth + columnGap),
-      renderY: marginY + rowHeight / 2 + row * rowHeight,
-    };
+function renderNodeButton(
+  node: ModuleGraphNode,
+  selectedName: string,
+  onSelect: (name: string) => void,
+  className: string,
+  style?: CSSProperties,
+) {
+  const targetName = node.module_id ?? node.id;
+  const selected = targetName === selectedName || node.id === selectedName;
+  return (
+    <button
+      className={`${className}${selected ? ' selected' : ''}`}
+      type="button"
+      key={node.id}
+      onClick={() => onSelect(targetName)}
+      style={style}
+      aria-label={`${node.label}: ${node.description}`}
+    >
+      <span className="node-title">{node.label}</span>
+      <span className="node-copy">{node.description}</span>
+      <span className="node-chip-row">
+        <span className="node-chip">{kindLabel(node.kind)}</span>
+        <span className="node-chip">{node.safety_label}</span>
+      </span>
+    </button>
+  );
+}
+
+function summarizeLayerNodes(nodes: ModuleGraphNode[], layer: string, modules: AtlasModule[]): ModuleGraphNode[] {
+  if (layer === 'overview' || layer === 'risk') return nodes;
+  if (layer === 'files') return summarizeGroups(nodes, modules, fileGroupKey, fileGroupNode);
+  if (layer === 'tools') return summarizeGroups(nodes, modules, toolGroupKey, toolGroupNode);
+  if (layer === 'pipelines') return summarizeGroups(nodes, modules, pipelineGroupKey, pipelineGroupNode);
+  return nodes;
+}
+
+function summarizeGroups(
+  nodes: ModuleGraphNode[],
+  modules: AtlasModule[],
+  keyFor: (node: ModuleGraphNode) => string,
+  makeNode: (key: string, nodes: ModuleGraphNode[], modules: AtlasModule[]) => ModuleGraphNode,
+): ModuleGraphNode[] {
+  const grouped = new Map<string, ModuleGraphNode[]>();
+  for (const node of nodes) {
+    const key = keyFor(node);
+    grouped.set(key, [...(grouped.get(key) ?? []), node]);
+  }
+  return Array.from(grouped.entries()).map(([key, items]) => makeNode(key, items, modules));
+}
+
+function fileGroupKey(node: ModuleGraphNode): string {
+  const path = node.files[0] ?? node.metadata.path ?? node.label;
+  return `${node.module_id ?? 'unknown'}:${folderLabel(path)}`;
+}
+
+function fileGroupNode(key: string, nodes: ModuleGraphNode[], modules: AtlasModule[]): ModuleGraphNode {
+  const [moduleId, folder] = splitGroupKey(key);
+  const files = unique(nodes.flatMap((node) => node.files));
+  return groupNode({
+    id: `group:files:${key}`,
+    label: folder,
+    description: `${files.length} files in ${moduleDisplayName(moduleId, modules)}`,
+    kind: 'file-group',
+    layer: 'files',
+    moduleId,
+    files,
+    nodes,
   });
+}
+
+function toolGroupKey(node: ModuleGraphNode): string {
+  return `${node.module_id ?? 'unknown'}:${node.id.split(':')[1] ?? 'tool'}`;
+}
+
+function toolGroupNode(key: string, nodes: ModuleGraphNode[], modules: AtlasModule[]): ModuleGraphNode {
+  const [moduleId, ecosystem] = splitGroupKey(key);
+  const files = unique(nodes.flatMap((node) => node.files));
+  return groupNode({
+    id: `group:tools:${key}`,
+    label: `${ecosystem} tools`,
+    description: `${nodes.length} tools or libraries used by ${moduleDisplayName(moduleId, modules)}`,
+    kind: 'tool-group',
+    layer: 'tools',
+    moduleId,
+    files,
+    nodes,
+  });
+}
+
+function pipelineGroupKey(node: ModuleGraphNode): string {
+  return `${node.module_id ?? 'unknown'}:${pipelineLabel(node.kind)}`;
+}
+
+function pipelineGroupNode(key: string, nodes: ModuleGraphNode[], modules: AtlasModule[]): ModuleGraphNode {
+  const [moduleId, label] = splitGroupKey(key);
+  const files = unique(nodes.flatMap((node) => node.files));
+  return groupNode({
+    id: `group:pipelines:${key}`,
+    label,
+    description: `${nodes.length} routes or commands for ${moduleDisplayName(moduleId, modules)}`,
+    kind: 'pipeline-group',
+    layer: 'pipelines',
+    moduleId,
+    files,
+    nodes,
+  });
+}
+
+function groupNode(input: {
+  id: string;
+  label: string;
+  description: string;
+  kind: string;
+  layer: string;
+  moduleId: string;
+  files: string[];
+  nodes: ModuleGraphNode[];
+}): ModuleGraphNode {
   return {
-    nodes: positioned,
-    nodeById: new Map(positioned.map((node) => [node.id, node])),
-    width,
-    height,
-    nodeWidth,
+    id: input.id,
+    label: input.label,
+    description: input.description,
+    safety_label: groupSafety(input.nodes),
+    x: 50,
+    y: 50,
+    kind: input.kind,
+    layer: input.layer,
+    module_id: input.moduleId === 'unknown' ? null : input.moduleId,
+    files: input.files,
+    metadata: { count: String(input.nodes.length) },
   };
 }
 
-function columnCount(layer: string, nodeCount: number): number {
-  if (nodeCount <= 2) return Math.max(1, nodeCount);
-  if (layer === 'overview') return Math.min(3, nodeCount);
-  if (layer === 'risk') return Math.min(3, nodeCount);
-  if (layer === 'pipelines') return Math.min(3, nodeCount);
-  return Math.min(5, Math.max(3, Math.ceil(Math.sqrt(nodeCount))));
+function folderLabel(path: string): string {
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length <= 1) return 'Project root';
+  return parts.slice(0, Math.min(2, parts.length - 1)).join('/');
+}
+
+function pipelineLabel(kind: string): string {
+  if (kind === 'route') return 'Routes';
+  if (kind === 'entrypoint') return 'Start points';
+  return 'Commands';
+}
+
+function splitGroupKey(key: string): [string, string] {
+  const index = key.indexOf(':');
+  return index === -1 ? [key, key] : [key.slice(0, index), key.slice(index + 1)];
+}
+
+function moduleDisplayName(moduleId: string, modules: AtlasModule[]): string {
+  return modules.find((module) => module.name === moduleId)?.display_name ?? 'this area';
+}
+
+function groupSafety(nodes: ModuleGraphNode[]): string {
+  return nodes.some((node) => node.safety_label !== 'Known area') ? 'Needs big-team check' : 'Known area';
+}
+
+function unique(items: string[]): string[] {
+  return Array.from(new Set(items));
 }
 
 function layerCounts(nodes: ModuleGraphNode[]): Record<string, number> {
@@ -166,6 +267,9 @@ function kindLabel(kind: string): string {
   if (kind === 'route') return 'Route';
   if (kind === 'entrypoint') return 'Start point';
   if (kind === 'risk') return 'Risk';
+  if (kind === 'file-group') return 'Files';
+  if (kind === 'tool-group') return 'Tools';
+  if (kind === 'pipeline-group') return 'Workflow';
   return kind;
 }
 

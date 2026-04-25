@@ -485,7 +485,10 @@ h2 {
 
 .module-map {
   position: relative;
-  min-height: 540px;
+  height: clamp(360px, 58vh, 760px);
+  min-height: 360px;
+  max-height: calc(100vh - 260px);
+  resize: both;
   overflow: auto;
   border: 1px solid #d9d9d4;
   border-radius: 8px;
@@ -499,6 +502,18 @@ h2 {
 .map-canvas {
   position: relative;
   min-width: 100%;
+}
+
+.grouped-map {
+  padding: 12px;
+}
+
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  align-content: start;
+  min-height: 100%;
 }
 
 .map-lines {
@@ -528,6 +543,7 @@ h2 {
 
 .map-node {
   position: absolute;
+  width: clamp(150px, 22%, 230px);
   min-height: 104px;
   display: grid;
   gap: 6px;
@@ -541,6 +557,20 @@ h2 {
   box-shadow: 0 10px 24px rgba(15, 15, 15, 0.08);
 }
 
+.map-card {
+  min-width: 0;
+  min-height: 104px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid #cfcfca;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #151515;
+  text-align: left;
+}
+
 .map-node.compact {
   min-height: 78px;
   align-content: center;
@@ -552,13 +582,19 @@ h2 {
 }
 
 .map-node:hover,
-.map-node.selected {
+.map-node.selected,
+.map-card:hover,
+.map-card.selected {
   border-color: #151515;
   background: #f1f1ef;
 }
 
 .map-node.selected {
   box-shadow: 0 0 0 3px #151515, 0 14px 28px rgba(15, 15, 15, 0.14);
+}
+
+.map-card.selected {
+  box-shadow: inset 0 0 0 2px #151515;
 }
 
 .node-title {

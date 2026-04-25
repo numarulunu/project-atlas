@@ -261,19 +261,19 @@ describe('App', () => {
 
     await waitFor(() => expect(screen.getByText('Project map')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /Tools/ }));
-    expect(screen.getByRole('button', { name: /react/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /npm tools/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Pipelines/ }));
-    expect(screen.getByRole('button', { name: /npm run build/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Commands/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Files/ }));
-    expect(screen.getByRole('button', { name: /engine.py/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /app\/core/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Risk/ }));
     expect(screen.getByRole('button', { name: /Safety checks needs review/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Tools/ }));
-    fireEvent.click(screen.getByRole('button', { name: /react/ }));
+    fireEvent.click(screen.getByRole('button', { name: /npm tools/ }));
     fireEvent.click(screen.getByText('Pull trigger'));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
@@ -282,7 +282,7 @@ describe('App', () => {
     ));
   });
 
-  it('spreads dense layer nodes instead of stacking duplicated coordinates', async () => {
+  it('summarizes dense file nodes instead of listing every file', async () => {
     stubFetch();
 
     render(<App />);
@@ -292,10 +292,24 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByText('Project map')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /Files/ }));
 
-    const denseNodes = screen.getAllByRole('button', { name: /dense-/ });
-    const positions = new Set(denseNodes.map((node) => `${node.style.left}:${node.style.top}`));
-    expect(denseNodes).toHaveLength(8);
-    expect(positions.size).toBe(8);
+    expect(screen.getByRole('button', { name: /app\/core/ })).toBeInTheDocument();
+    expect(screen.getByText(/9 files/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /dense-0.py/ })).not.toBeInTheDocument();
+  });
+
+  it('hides low-value wires outside the overview layer', async () => {
+    stubFetch();
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Real App')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Real App'));
+
+    await waitFor(() => expect(screen.getByText('Project map')).toBeInTheDocument());
+    expect(screen.getByText('checks')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Tools/ }));
+    expect(screen.queryByText('imports')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Visual module map')).toHaveClass('grouped-map');
   });
 
   it('builds an AI map-review prompt without sending code automatically', async () => {

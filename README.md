@@ -25,7 +25,7 @@ Open `http://127.0.0.1:5177`.
 
 1. Atlas auto-loads real project folders from common local work areas.
 2. Pick a project folder.
-3. Atlas draws a layered visual map of app parts, files, tools, routes, commands, tests, and risk zones.
+3. Atlas draws a layered visual map of app parts, grouped folders, grouped tools, grouped workflows, tests, and risk zones.
 4. Click the node you want SMAC to inspect.
 5. Pick the job: `Diagnose bug`, `Audit quality`, or `Cleanup risk`.
 6. Click `Pull trigger`.
