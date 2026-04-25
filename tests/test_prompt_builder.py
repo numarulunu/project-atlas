@@ -51,3 +51,27 @@ def test_sniper_prompt_includes_tools_pipelines_and_neighbors(sample_repo: Path)
     assert "Nearby connections:" in prompt.markdown
     assert prompt.data["tools"]
     assert prompt.data["pipelines"]
+
+def test_sniper_prompt_includes_detected_workflow_stations(sample_repo: Path) -> None:
+    (sample_repo / "requirements.txt").write_text(
+        "demucs\npyannote.audio\nopenai\nfaster-whisper\n",
+        encoding="utf-8",
+    )
+    (sample_repo / "app" / "pipeline.py").write_text(
+        "import demucs\nimport pyannote.audio\nfrom faster_whisper import WhisperModel\nfrom openai import OpenAI\n\n"
+        "def process_video(video_file: str) -> str:\n"
+        "    vocals = separate_vocal_stem(video_file)\n"
+        "    speakers = diarize_speakers(vocals)\n"
+        "    transcript = transcribe_audio(vocals, speakers)\n"
+        "    return clean_transcript_with_ai(transcript)\n",
+        encoding="utf-8",
+    )
+
+    scan = scan_repo(sample_repo)
+    module = next(item for item in infer_modules(scan) if item.name == "python-core")
+    prompt = build_sniper_prompt(scan, module, "diagnose_bug")
+
+    assert "Detected workflow stations:" in prompt.markdown
+    assert "Stem splitter" in prompt.markdown
+    assert "AI cleanup" in prompt.markdown
+    assert prompt.data["workflow"]

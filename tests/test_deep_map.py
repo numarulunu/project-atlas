@@ -46,3 +46,43 @@ def test_deep_map_nodes_can_aim_smac_through_module_id(sample_repo: Path) -> Non
 
     assert nodes["file:app/core/engine.py"].module_id == "python-core"
     assert nodes["tool:npm:react"].module_id == "frontend"
+
+
+def test_pipeline_story_maps_transcription_workflow_as_stations(sample_repo: Path) -> None:
+    (sample_repo / "requirements.txt").write_text(
+        "demucs\npyannote.audio\nopenai\nfaster-whisper\n",
+        encoding="utf-8",
+    )
+    (sample_repo / "app" / "pipeline.py").write_text(
+        "import demucs\nimport pyannote.audio\nfrom faster_whisper import WhisperModel\nfrom openai import OpenAI\n\n"
+        "def process_video(video_file: str) -> str:\n"
+        "    vocals = separate_vocal_stem(video_file)\n"
+        "    speakers = diarize_speakers(vocals)\n"
+        "    transcript = transcribe_audio(vocals, speakers)\n"
+        "    return clean_transcript_with_ai(transcript)\n",
+        encoding="utf-8",
+    )
+
+    scan = scan_repo(sample_repo)
+    graph = build_module_graph(scan, infer_modules(scan))
+    workflow_nodes = [node for node in graph.nodes if node.layer == "workflow"]
+    workflow_links = [(link.source, link.target, link.label) for link in graph.links if link.layer == "workflow"]
+
+    labels = [node.label for node in workflow_nodes]
+    assert labels == [
+        "Video files",
+        "Stem splitter",
+        "Speaker labels",
+        "Speech to text",
+        "AI cleanup",
+        "Final transcript",
+    ]
+    assert all(node.kind == "pipeline-stage" for node in workflow_nodes)
+    assert all(node.module_id == "python-core" for node in workflow_nodes)
+    assert workflow_links == [
+        ("workflow:input", "workflow:stem-splitter", "then"),
+        ("workflow:stem-splitter", "workflow:diarization", "then"),
+        ("workflow:diarization", "workflow:transcription", "then"),
+        ("workflow:transcription", "workflow:ai-cleanup", "then"),
+        ("workflow:ai-cleanup", "workflow:output", "then"),
+    ]

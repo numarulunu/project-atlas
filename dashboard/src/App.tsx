@@ -5,7 +5,7 @@ import { AiMapReview } from './components/AiMapReview';
 import { ModuleMap } from './components/ModuleMap';
 import { RepoHeader } from './components/RepoHeader';
 import { SniperTrigger } from './components/SniperTrigger';
-import type { AtlasModule, ModuleGraph, ProjectCandidate } from './types';
+import type { AtlasModule, ModuleGraph, ModuleGraphNode, ProjectCandidate } from './types';
 import './styles.css';
 
 export default function App() {
@@ -68,9 +68,13 @@ export default function App() {
     }
   }
 
+  const selectedGraphNode = useMemo(
+    () => graph?.nodes.find((node) => node.id === selectedName),
+    [graph, selectedName],
+  );
   const selectedModule = useMemo(
-    () => modules.find((module) => module.name === selectedName) ?? modules[0],
-    [modules, selectedName],
+    () => modules.find((module) => module.name === selectedName) ?? graphNodeToModule(selectedGraphNode) ?? modules[0],
+    [modules, selectedName, selectedGraphNode],
   );
   const hasScan = Boolean(repoPath);
 
@@ -158,4 +162,21 @@ export default function App() {
       )}
     </main>
   );
+}
+function graphNodeToModule(node?: ModuleGraphNode): AtlasModule | undefined {
+  if (!node || node.kind !== 'pipeline-stage') return undefined;
+  return {
+    name: node.id,
+    display_name: node.label,
+    purpose: node.description,
+    simple_description: node.description,
+    confidence_label: 'Mapped station',
+    safety_label: node.safety_label,
+    files: node.files,
+    tests: [],
+    confidence: 0.76,
+    freshness: 'fresh',
+    reachability: node.safety_label === 'Known area' ? 'known' : 'unknown',
+    evidence: [],
+  };
 }

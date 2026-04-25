@@ -13,5 +13,6 @@ build/
 *.db-*
 *.sqlite*
 .atlas/
+.superpowers/
 coverage/
 htmlcov/

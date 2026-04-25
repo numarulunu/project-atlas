@@ -9,7 +9,7 @@ from atlas_backend.ai_analysis import build_ai_map_review_prompt
 from atlas_backend.config import default_config
 from atlas_backend.logging_config import configure_logging
 from atlas_backend.graph import build_module_graph
-from atlas_backend.models import ProjectCandidate
+from atlas_backend.models import ModuleHypothesis, ProjectCandidate
 from atlas_backend.module_infer import infer_modules
 from atlas_backend.packet import compile_smac_packet
 from atlas_backend.prompt_builder import build_sniper_prompt
@@ -48,7 +48,7 @@ class AiMapReviewRequest(BaseModel):
 def create_app() -> FastAPI:
     config = default_config()
     configure_logging(config.log_path)
-    app = FastAPI(title="Project Atlas", version="0.4.2")
+    app = FastAPI(title="Project Atlas", version="0.5.0")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -110,10 +110,41 @@ def create_app() -> FastAPI:
 
 
 def _find_module(scan, module_name: str):
-    module = next((item for item in infer_modules(scan) if item.name == module_name), None)
-    if module is None:
-        raise HTTPException(status_code=404, detail="Module not found")
-    return module
+    modules = infer_modules(scan)
+    module = next((item for item in modules if item.name == module_name), None)
+    if module is not None:
+        return module
+    workflow_target = _find_workflow_target(scan, modules, module_name)
+    if workflow_target is not None:
+        return workflow_target
+    raise HTTPException(status_code=404, detail="Module not found")
+
+
+def _find_workflow_target(scan, modules: list[ModuleHypothesis], module_name: str) -> ModuleHypothesis | None:
+    if not module_name.startswith("workflow:"):
+        return None
+    graph = build_module_graph(scan, modules)
+    node = next((item for item in graph.nodes if item.id == module_name and item.kind == "pipeline-stage"), None)
+    if node is None:
+        return None
+    parent = next((item for item in modules if item.name == node.module_id), None)
+    files = node.files or (parent.files if parent else [])
+    file_set = set(files)
+    evidence = [item for item in scan.evidence if item.source_file in file_set][:20]
+    return ModuleHypothesis(
+        name=node.id,
+        display_name=node.label,
+        purpose=node.description,
+        simple_description=node.description,
+        confidence_label="Mapped station",
+        safety_label=node.safety_label,
+        files=files,
+        tests=parent.tests if parent else [],
+        confidence=0.76,
+        freshness="fresh",
+        reachability="known" if node.safety_label == "Known area" else "unknown",
+        evidence=evidence,
+    )
 
 
 def project_search_roots(primary_root: Path | None = None) -> list[Path]:

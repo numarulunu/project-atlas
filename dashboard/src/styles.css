@@ -428,7 +428,7 @@ h2 {
 
 .layer-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(106px, 1fr));
   gap: 8px;
   margin-bottom: 10px;
 }
@@ -474,9 +474,37 @@ h2 {
   justify-content: space-between;
   gap: 10px;
   align-items: center;
-  margin-bottom: 8px;
   color: #595959;
   font-size: 0.9rem;
+}
+
+.map-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.map-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.icon-action {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #cfcfca;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #151515;
+}
+
+.icon-action:hover {
+  border-color: #151515;
+  background: #f1f1ef;
 }
 
 .map-summary strong {
@@ -502,6 +530,12 @@ h2 {
 .map-canvas {
   position: relative;
   min-width: 100%;
+  min-height: 100%;
+}
+
+.workflow-map .map-canvas {
+  width: 1100px;
+  height: 560px;
 }
 
 .grouped-map {
@@ -524,10 +558,22 @@ h2 {
   pointer-events: none;
 }
 
-.map-lines line {
+.map-lines line,
+.map-lines path {
   stroke: #5f676d;
   stroke-width: 1.2;
   stroke-linecap: round;
+  fill: none;
+}
+
+.workflow-lines path {
+  stroke: #151515;
+  stroke-width: 1.4;
+}
+
+.workflow-lines marker path {
+  fill: #151515;
+  stroke: none;
 }
 
 .map-lines text {
@@ -555,6 +601,17 @@ h2 {
   color: #151515;
   text-align: left;
   box-shadow: 0 10px 24px rgba(15, 15, 15, 0.08);
+  touch-action: none;
+}
+
+.pipeline-stage-node {
+  width: 162px;
+  min-height: 128px;
+  border-color: #151515;
+}
+
+.pipeline-stage-node .node-title {
+  padding-right: 30px;
 }
 
 .map-card {
@@ -595,6 +652,22 @@ h2 {
 
 .map-card.selected {
   box-shadow: inset 0 0 0 2px #151515;
+}
+
+.node-step {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #151515;
+  border-radius: 999px;
+  background: #151515;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 900;
 }
 
 .node-title {

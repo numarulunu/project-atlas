@@ -181,10 +181,57 @@ const scanResponse = {
   },
 };
 
-function stubFetch() {
+const workflowScanResponse = {
+  ...scanResponse,
+  graph: {
+    nodes: [
+      ...scanResponse.graph.nodes,
+      ...[
+        ['workflow:input', 'Video files', 'Raw video or audio enters the app here.', 8],
+        ['workflow:stem-splitter', 'Stem splitter', 'The app separates voices from music or background sound.', 25],
+        ['workflow:diarization', 'Speaker labels', 'The app works out who spoke when.', 42],
+        ['workflow:transcription', 'Speech to text', 'The app turns spoken words into text.', 59],
+        ['workflow:ai-cleanup', 'AI cleanup', 'An AI pass cleans or improves the raw transcript.', 76],
+        ['workflow:output', 'Final transcript', 'The finished text is saved, exported, or shown to the user.', 93],
+      ].map(([id, label, description, x], index) => ({
+        id,
+        label,
+        description,
+        safety_label: 'Known area',
+        x,
+        y: 50,
+        kind: 'pipeline-stage',
+        layer: 'workflow',
+        module_id: 'python-core',
+        files: ['app/pipeline.py'],
+        metadata: { sequence: String(index + 1) },
+      })),
+    ],
+    links: [
+      ...scanResponse.graph.links,
+      ...[
+        ['workflow:input', 'workflow:stem-splitter'],
+        ['workflow:stem-splitter', 'workflow:diarization'],
+        ['workflow:diarization', 'workflow:transcription'],
+        ['workflow:transcription', 'workflow:ai-cleanup'],
+        ['workflow:ai-cleanup', 'workflow:output'],
+      ].map(([source, target]) => ({
+        source,
+        target,
+        label: 'then',
+        reason: 'Important processing order detected from project files.',
+        kind: 'workflow',
+        layer: 'workflow',
+        files: ['app/pipeline.py'],
+      })),
+    ],
+  },
+};
+
+function stubFetch(scan = scanResponse) {
   const fetchMock = vi.fn((url: string) => {
     if (url.startsWith('/api/repo/scan')) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(scanResponse) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(scan) });
     }
     if (url === '/api/prompt/build') {
       return Promise.resolve({
@@ -310,6 +357,41 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /Tools/ }));
     expect(screen.queryByText('imports')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Visual module map')).toHaveClass('grouped-map');
+  });
+
+  it('opens workflow maps as a movable station canvas', async () => {
+    const fetchMock = stubFetch(workflowScanResponse);
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Real App')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Real App'));
+
+    await waitFor(() => expect(screen.getByText('Video files')).toBeInTheDocument());
+    const map = screen.getByLabelText('Visual module map');
+    const canvas = map.querySelector('.map-canvas') as HTMLElement;
+    const videoStation = screen.getByRole('button', { name: /Video files/ });
+
+    expect(screen.getByRole('button', { name: /Workflow/ })).toHaveClass('selected');
+    expect(screen.getByText('Stem splitter')).toBeInTheDocument();
+    expect(screen.getByText('Speech to text')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /dense-0.py/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Zoom in workflow map'));
+    expect(canvas).toHaveStyle({ width: '1320px' });
+
+    fireEvent.pointerDown(videoStation, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(videoStation, { pointerId: 1, clientX: 180, clientY: 100 });
+    fireEvent.pointerUp(videoStation, { pointerId: 1 });
+
+    expect(videoStation).toHaveStyle({ left: '16%' });
+
+    fireEvent.click(screen.getByRole('button', { name: /Stem splitter/ }));
+    fireEvent.click(screen.getByText('Pull trigger'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/prompt/build',
+      expect.objectContaining({ body: expect.stringContaining('"module_name":"workflow:stem-splitter"') }),
+    ));
   });
 
   it('builds an AI map-review prompt without sending code automatically', async () => {

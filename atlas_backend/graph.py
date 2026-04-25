@@ -15,17 +15,71 @@ NODE_POSITIONS = {
     "scripts": (46, 76),
 }
 LAYER_ORDER = {
-    "overview": 0,
-    "pipelines": 1,
-    "tools": 2,
-    "files": 3,
-    "risk": 4,
+    "workflow": 0,
+    "overview": 1,
+    "pipelines": 2,
+    "tools": 3,
+    "files": 4,
+    "risk": 5,
 }
 IMPORT_LABEL = "uses"
 TEST_LABEL = "checks"
 ROUTE_RE = re.compile(r"@(?:\w+\.)?(?P<method>get|post|put|patch|delete)\(['\"](?P<path>[^'\"]+)['\"]")
 REQUIREMENT_RE = re.compile(r"^[A-Za-z0-9_.-]+")
 MAX_FILE_NODES = 500
+MAX_WORKFLOW_FILES = 220
+MAX_WORKFLOW_READ_BYTES = 180_000
+WORKFLOW_STAGE_DEFINITIONS = [
+    {
+        "id": "input",
+        "label": "Video files",
+        "description": "Raw video or audio enters the app here.",
+        "keywords": ("video", "audio", "media", "recording", "upload", "input file", "source file"),
+        "x": 8,
+        "y": 50,
+    },
+    {
+        "id": "stem-splitter",
+        "label": "Stem splitter",
+        "description": "The app separates voices from music or background sound.",
+        "keywords": ("demucs", "spleeter", "stem", "vocals", "vocal", "instrumental", "separate_vocal", "separator"),
+        "x": 25,
+        "y": 50,
+    },
+    {
+        "id": "diarization",
+        "label": "Speaker labels",
+        "description": "The app works out who spoke when.",
+        "keywords": ("diarization", "diarize", "speaker", "speakers", "pyannote", "whisperx"),
+        "x": 42,
+        "y": 50,
+    },
+    {
+        "id": "transcription",
+        "label": "Speech to text",
+        "description": "The app turns spoken words into text.",
+        "keywords": ("whisper", "faster-whisper", "transcribe", "transcription", "speech_to_text", "speech to text", "stt"),
+        "x": 59,
+        "y": 50,
+    },
+    {
+        "id": "ai-cleanup",
+        "label": "AI cleanup",
+        "description": "An AI pass cleans or improves the raw transcript.",
+        "keywords": ("openai", "anthropic", "claude", "gpt", "llm", "ai cleanup", "clean_transcript", "polish", "cleanup"),
+        "x": 76,
+        "y": 50,
+    },
+    {
+        "id": "output",
+        "label": "Final transcript",
+        "description": "The finished text is saved, exported, or shown to the user.",
+        "keywords": ("final transcript", "transcript", "export", "output", "save", "srt", "vtt", "docx"),
+        "x": 93,
+        "y": 50,
+    },
+]
+WORKFLOW_SORT_ORDER = {f"workflow:{stage['id']}": index for index, stage in enumerate(WORKFLOW_STAGE_DEFINITIONS)}
 
 
 def build_module_graph(scan: ScanResult, modules: list[ModuleHypothesis]) -> ModuleGraph:
@@ -47,12 +101,19 @@ def build_module_graph(scan: ScanResult, modules: list[ModuleHypothesis]) -> Mod
     _add_manifest_nodes(root, scan, nodes, links, module_by_file)
     _add_route_nodes(root, scan, nodes, links, module_by_file)
     _add_import_links(scan, nodes, links, module_by_file, file_paths)
+    _add_workflow_story_nodes(root, scan, nodes, links, module_by_file)
     _add_test_links(modules, links, module_by_file)
     _add_risk_nodes(modules, nodes, links)
 
     ordered_nodes = sorted(nodes.values(), key=lambda node: (LAYER_ORDER.get(node.layer, 9), node.y, node.x, node.id))
-    ordered_links = sorted(links.values(), key=lambda link: (LAYER_ORDER.get(link.layer, 9), link.source, link.target, link.label))
+    ordered_links = sorted(links.values(), key=_link_sort_key)
     return ModuleGraph(nodes=ordered_nodes, links=ordered_links)
+
+
+def _link_sort_key(link: ModuleGraphLink) -> tuple[int, int | str, str, str]:
+    if link.layer == "workflow":
+        return (LAYER_ORDER.get(link.layer, 9), WORKFLOW_SORT_ORDER.get(link.source, 99), link.target, link.label)
+    return (LAYER_ORDER.get(link.layer, 9), link.source, link.target, link.label)
 
 
 def _module_node(module: ModuleHypothesis, index: int) -> ModuleGraphNode:
@@ -281,6 +342,100 @@ def _add_test_links(modules: list[ModuleHypothesis], links: dict[tuple[str, str,
             if source and source != module.name:
                 _add_link(links, source, module.name, TEST_LABEL, "Mapped tests check this app part.", "test", "overview", [test_path])
                 _add_link(links, f"file:{test_path}", module.name, TEST_LABEL, "Test file checks this app part.", "test", "files", [test_path])
+
+
+def _add_workflow_story_nodes(
+    root: Path,
+    scan: ScanResult,
+    nodes: dict[str, ModuleGraphNode],
+    links: dict[tuple[str, str, str], ModuleGraphLink],
+    module_by_file: dict[str, str],
+) -> None:
+    stage_files = _workflow_stage_files(root, scan)
+    if not _has_workflow_story(stage_files):
+        return
+
+    module_id = _dominant_workflow_module(stage_files, module_by_file)
+    for index, stage in enumerate(WORKFLOW_STAGE_DEFINITIONS, start=1):
+        stage_id = str(stage["id"])
+        files = sorted(stage_files.get(stage_id, set()))[:20]
+        _add_node(
+            nodes,
+            ModuleGraphNode(
+                id=f"workflow:{stage_id}",
+                label=str(stage["label"]),
+                description=str(stage["description"]),
+                safety_label="Known area" if module_id else "Needs review",
+                x=int(stage["x"]),
+                y=int(stage["y"]),
+                kind="pipeline-stage",
+                layer="workflow",
+                module_id=module_id,
+                files=files,
+                metadata={"sequence": str(index), "matched_files": str(len(files))},
+            ),
+        )
+
+    stage_ids = [str(stage["id"]) for stage in WORKFLOW_STAGE_DEFINITIONS]
+    for source, target in zip(stage_ids, stage_ids[1:]):
+        source_files = stage_files.get(source, set())
+        target_files = stage_files.get(target, set())
+        _add_link(
+            links,
+            f"workflow:{source}",
+            f"workflow:{target}",
+            "then",
+            "Important processing order detected from project files.",
+            "workflow",
+            "workflow",
+            sorted(source_files | target_files)[:20],
+        )
+
+
+def _workflow_stage_files(root: Path, scan: ScanResult) -> dict[str, set[str]]:
+    stage_files = {str(stage["id"]): set() for stage in WORKFLOW_STAGE_DEFINITIONS}
+    for rel_path, text in _workflow_corpus(root, scan):
+        lowered = text.lower()
+        for stage in WORKFLOW_STAGE_DEFINITIONS:
+            stage_id = str(stage["id"])
+            keywords = tuple(str(keyword) for keyword in stage["keywords"])
+            if any(keyword in lowered for keyword in keywords):
+                stage_files[stage_id].add(rel_path)
+    return stage_files
+
+
+def _workflow_corpus(root: Path, scan: ScanResult) -> list[tuple[str, str]]:
+    corpus: list[tuple[str, str]] = []
+    for file in scan.files[:MAX_WORKFLOW_FILES]:
+        if file.language not in {"python", "javascript", "typescript", "json", "toml", "text", "markdown", "yaml"}:
+            continue
+        path = root / file.path
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")[:MAX_WORKFLOW_READ_BYTES]
+        except OSError:
+            continue
+        corpus.append((file.path, f"{file.path}\n{text}"))
+    for evidence in scan.evidence:
+        corpus.append((evidence.source_file, f"{evidence.subject}\n{evidence.quote}"))
+    return corpus
+
+
+def _has_workflow_story(stage_files: dict[str, set[str]]) -> bool:
+    heavy_stages = {"stem-splitter", "diarization", "transcription", "ai-cleanup"}
+    detected_heavy = [stage for stage in heavy_stages if stage_files.get(stage)]
+    return len(detected_heavy) >= 3 and bool(stage_files.get("transcription"))
+
+
+def _dominant_workflow_module(stage_files: dict[str, set[str]], module_by_file: dict[str, str]) -> str | None:
+    counts: dict[str, int] = {}
+    for files in stage_files.values():
+        for file in files:
+            module_id = module_by_file.get(file)
+            if module_id:
+                counts[module_id] = counts.get(module_id, 0) + 1
+    if not counts:
+        return None
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
 
 
 def _add_risk_nodes(modules: list[ModuleHypothesis], nodes: dict[str, ModuleGraphNode], links: dict[tuple[str, str, str], ModuleGraphLink]) -> None:

@@ -69,6 +69,33 @@ def test_prompt_build_endpoint_returns_trigger_prompt(sample_repo: Path) -> None
     assert "Main engine" in body["prompt"]
 
 
+def test_prompt_build_endpoint_can_target_workflow_station(sample_repo: Path) -> None:
+    (sample_repo / "requirements.txt").write_text(
+        "demucs\npyannote.audio\nopenai\nfaster-whisper\n",
+        encoding="utf-8",
+    )
+    (sample_repo / "app" / "pipeline.py").write_text(
+        "import demucs\nfrom faster_whisper import WhisperModel\n\n"
+        "def process_video(video_file: str) -> str:\n"
+        "    vocals = separate_vocal_stem(video_file)\n"
+        "    transcript = transcribe_audio(vocals)\n"
+        "    return clean_transcript_with_ai(transcript)\n",
+        encoding="utf-8",
+    )
+
+    response = TestClient(create_app()).post(
+        "/api/prompt/build",
+        json={"repo_path": str(sample_repo), "module_name": "workflow:stem-splitter", "mode": "diagnose_bug"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["module"] == "workflow:stem-splitter"
+    assert body["module_display_name"] == "Stem splitter"
+    assert "Target: Stem splitter (workflow:stem-splitter)" in body["prompt"]
+    assert "app/pipeline.py" in body["prompt"]
+
+
 def test_ai_map_review_endpoint_returns_readonly_prompt(sample_repo: Path) -> None:
     response = TestClient(create_app()).post(
         "/api/ai/map-review",

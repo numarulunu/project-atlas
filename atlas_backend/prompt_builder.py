@@ -61,6 +61,9 @@ Detected tools and libraries:
 Detected routes and commands:
 {_bullet(graph_context["pipelines"])}
 
+Detected workflow stations:
+{_bullet(graph_context["workflow"])}
+
 Nearby connections:
 {_bullet(nearby)}
 
@@ -94,6 +97,7 @@ Output in plain English:
             "tests": tests,
             "tools": graph_context["tools"],
             "pipelines": graph_context["pipelines"],
+            "workflow": graph_context["workflow"],
             "upstream": graph_context["upstream"],
             "downstream": graph_context["downstream"],
             "destructive_actions_allowed": False,
@@ -117,6 +121,11 @@ def _graph_context(scan: ScanResult, module: ModuleHypothesis) -> dict[str, list
         for node in graph.nodes
         if node.layer == "pipelines" and node.module_id == module.name
     ]
+    workflow = [
+        _node_context_line(node)
+        for node in graph.nodes
+        if node.layer == "workflow" and (node.module_id == module.name or node.id == module.name)
+    ]
     upstream: list[str] = []
     downstream: list[str] = []
 
@@ -135,6 +144,7 @@ def _graph_context(scan: ScanResult, module: ModuleHypothesis) -> dict[str, list
     return {
         "tools": _unique(tools)[:MAX_CONTEXT_ITEMS],
         "pipelines": _unique(pipelines)[:MAX_CONTEXT_ITEMS],
+        "workflow": _unique(workflow)[:MAX_CONTEXT_ITEMS],
         "upstream": _unique(upstream)[:MAX_CONTEXT_ITEMS],
         "downstream": _unique(downstream)[:MAX_CONTEXT_ITEMS],
     }
