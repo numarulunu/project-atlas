@@ -58,4 +58,4 @@
 - [x] Run `python -m pytest -q`.
 - [x] Run `npm test` and `npm run build`.
 - [x] Run current and history leak scans.
-- [ ] Commit, push, restart local Atlas.
+- [x] Commit, push, restart local Atlas.
