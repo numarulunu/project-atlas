@@ -48,7 +48,7 @@ class AiMapReviewRequest(BaseModel):
 def create_app() -> FastAPI:
     config = default_config()
     configure_logging(config.log_path)
-    app = FastAPI(title="Project Atlas", version="0.5.0")
+    app = FastAPI(title="Project Atlas", version="0.5.1")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

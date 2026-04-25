@@ -29,57 +29,49 @@ REQUIREMENT_RE = re.compile(r"^[A-Za-z0-9_.-]+")
 MAX_FILE_NODES = 500
 MAX_WORKFLOW_FILES = 220
 MAX_WORKFLOW_READ_BYTES = 180_000
-WORKFLOW_STAGE_DEFINITIONS = [
+TRANSCRIPTION_STAGE_DEFINITIONS = [
     {
         "id": "input",
         "label": "Video files",
         "description": "Raw video or audio enters the app here.",
         "keywords": ("video", "audio", "media", "recording", "upload", "input file", "source file"),
-        "x": 8,
-        "y": 50,
     },
     {
         "id": "stem-splitter",
         "label": "Stem splitter",
         "description": "The app separates voices from music or background sound.",
         "keywords": ("demucs", "spleeter", "stem", "vocals", "vocal", "instrumental", "separate_vocal", "separator"),
-        "x": 25,
-        "y": 50,
     },
     {
         "id": "diarization",
         "label": "Speaker labels",
         "description": "The app works out who spoke when.",
         "keywords": ("diarization", "diarize", "speaker", "speakers", "pyannote", "whisperx"),
-        "x": 42,
-        "y": 50,
     },
     {
         "id": "transcription",
         "label": "Speech to text",
         "description": "The app turns spoken words into text.",
         "keywords": ("whisper", "faster-whisper", "transcribe", "transcription", "speech_to_text", "speech to text", "stt"),
-        "x": 59,
-        "y": 50,
     },
     {
         "id": "ai-cleanup",
         "label": "AI cleanup",
         "description": "An AI pass cleans or improves the raw transcript.",
         "keywords": ("openai", "anthropic", "claude", "gpt", "llm", "ai cleanup", "clean_transcript", "polish", "cleanup"),
-        "x": 76,
-        "y": 50,
     },
     {
         "id": "output",
         "label": "Final transcript",
         "description": "The finished text is saved, exported, or shown to the user.",
         "keywords": ("final transcript", "transcript", "export", "output", "save", "srt", "vtt", "docx"),
-        "x": 93,
-        "y": 50,
     },
 ]
-WORKFLOW_SORT_ORDER = {f"workflow:{stage['id']}": index for index, stage in enumerate(WORKFLOW_STAGE_DEFINITIONS)}
+GENERIC_WORKFLOW_ORDER = ["frontend", "routes", "commands", "python-core", "data", "tools", "tests"]
+WORKFLOW_SORT_ORDER = {
+    **{f"workflow:{stage['id']}": index for index, stage in enumerate(TRANSCRIPTION_STAGE_DEFINITIONS)},
+    **{f"workflow:{stage_id}": index + 20 for index, stage_id in enumerate(GENERIC_WORKFLOW_ORDER)},
+}
 
 
 def build_module_graph(scan: ScanResult, modules: list[ModuleHypothesis]) -> ModuleGraph:
@@ -101,7 +93,7 @@ def build_module_graph(scan: ScanResult, modules: list[ModuleHypothesis]) -> Mod
     _add_manifest_nodes(root, scan, nodes, links, module_by_file)
     _add_route_nodes(root, scan, nodes, links, module_by_file)
     _add_import_links(scan, nodes, links, module_by_file, file_paths)
-    _add_workflow_story_nodes(root, scan, nodes, links, module_by_file)
+    _add_workflow_story_nodes(root, scan, nodes, links, module_by_file, modules)
     _add_test_links(modules, links, module_by_file)
     _add_risk_nodes(modules, nodes, links)
 
@@ -350,36 +342,33 @@ def _add_workflow_story_nodes(
     nodes: dict[str, ModuleGraphNode],
     links: dict[tuple[str, str, str], ModuleGraphLink],
     module_by_file: dict[str, str],
+    modules: list[ModuleHypothesis],
 ) -> None:
-    stage_files = _workflow_stage_files(root, scan)
-    if not _has_workflow_story(stage_files):
+    stage_files = _workflow_stage_files(root, scan, TRANSCRIPTION_STAGE_DEFINITIONS)
+    stations = _transcription_workflow_stations(stage_files, module_by_file)
+    if not stations:
+        stations = _generic_workflow_stations(nodes, modules)
+    if len(stations) < 2:
         return
 
-    module_id = _dominant_workflow_module(stage_files, module_by_file)
-    for index, stage in enumerate(WORKFLOW_STAGE_DEFINITIONS, start=1):
-        stage_id = str(stage["id"])
-        files = sorted(stage_files.get(stage_id, set()))[:20]
+    total = len(stations)
+    for index, station in enumerate(stations):
         _add_node(
             nodes,
-            ModuleGraphNode(
-                id=f"workflow:{stage_id}",
-                label=str(stage["label"]),
-                description=str(stage["description"]),
-                safety_label="Known area" if module_id else "Needs review",
-                x=int(stage["x"]),
-                y=int(stage["y"]),
-                kind="pipeline-stage",
-                layer="workflow",
-                module_id=module_id,
-                files=files,
-                metadata={"sequence": str(index), "matched_files": str(len(files))},
+            _workflow_node(
+                stage_id=str(station["id"]),
+                label=str(station["label"]),
+                description=str(station["description"]),
+                module_id=station.get("module_id") if isinstance(station.get("module_id"), str) else None,
+                files=station.get("files") if isinstance(station.get("files"), list) else [],
+                index=index,
+                total=total,
             ),
         )
 
-    stage_ids = [str(stage["id"]) for stage in WORKFLOW_STAGE_DEFINITIONS]
+    stage_ids = [str(station["id"]) for station in stations]
+    files_by_stage = {str(station["id"]): station.get("files") if isinstance(station.get("files"), list) else [] for station in stations}
     for source, target in zip(stage_ids, stage_ids[1:]):
-        source_files = stage_files.get(source, set())
-        target_files = stage_files.get(target, set())
         _add_link(
             links,
             f"workflow:{source}",
@@ -388,15 +377,115 @@ def _add_workflow_story_nodes(
             "Important processing order detected from project files.",
             "workflow",
             "workflow",
-            sorted(source_files | target_files)[:20],
+            _unique((files_by_stage.get(source) or []) + (files_by_stage.get(target) or []))[:20],
         )
 
 
-def _workflow_stage_files(root: Path, scan: ScanResult) -> dict[str, set[str]]:
-    stage_files = {str(stage["id"]): set() for stage in WORKFLOW_STAGE_DEFINITIONS}
+def _transcription_workflow_stations(stage_files: dict[str, set[str]], module_by_file: dict[str, str]) -> list[dict[str, object]]:
+    if not _has_transcription_workflow(stage_files):
+        return []
+    module_id = _dominant_workflow_module(stage_files, module_by_file)
+    stations: list[dict[str, object]] = []
+    for stage in TRANSCRIPTION_STAGE_DEFINITIONS:
+        stage_id = str(stage["id"])
+        files = sorted(stage_files.get(stage_id, set()))[:20]
+        if not files:
+            continue
+        stations.append({
+            "id": stage_id,
+            "label": stage["label"],
+            "description": stage["description"],
+            "module_id": module_id,
+            "files": files,
+        })
+    return stations
+
+
+def _generic_workflow_stations(nodes: dict[str, ModuleGraphNode], modules: list[ModuleHypothesis]) -> list[dict[str, object]]:
+    module_by_name = {module.name: module for module in modules}
+    route_nodes = [node for node in nodes.values() if node.layer == "pipelines" and node.kind == "route"]
+    command_nodes = [node for node in nodes.values() if node.layer == "pipelines" and node.kind in {"script", "entrypoint"}]
+    tool_nodes = [node for node in nodes.values() if node.kind == "tool"]
+    data_nodes = [node for node in nodes.values() if node.kind == "file" and _looks_like_data_file(node)]
+    stations: list[dict[str, object]] = []
+
+    frontend = module_by_name.get("frontend")
+    if frontend:
+        stations.append(_module_station("frontend", frontend))
+    if route_nodes:
+        stations.append({
+            "id": "routes",
+            "label": "API routes",
+            "description": f"Requests enter through {len(route_nodes)} mapped backend routes.",
+            "module_id": _dominant_node_module(route_nodes) or "python-core",
+            "files": _node_files(route_nodes),
+        })
+    elif command_nodes:
+        stations.append({
+            "id": "commands",
+            "label": "Commands and jobs",
+            "description": f"{len(command_nodes)} scripts or entry points start work in this project.",
+            "module_id": _dominant_node_module(command_nodes),
+            "files": _node_files(command_nodes),
+        })
+
+    core = module_by_name.get("python-core")
+    if core:
+        stations.append(_module_station("python-core", core))
+    if data_nodes:
+        stations.append({
+            "id": "data",
+            "label": "Data and storage",
+            "description": f"{len(data_nodes)} mapped files look responsible for saved data or database work.",
+            "module_id": _dominant_node_module(data_nodes) or "python-core",
+            "files": _node_files(data_nodes),
+        })
+    if tool_nodes:
+        stations.append({
+            "id": "tools",
+            "label": "External tools",
+            "description": f"{len(tool_nodes)} detected libraries or tools support the app.",
+            "module_id": _dominant_node_module(tool_nodes),
+            "files": _node_files(tool_nodes),
+        })
+
+    tests = module_by_name.get("tests")
+    if tests and len(stations) >= 2:
+        stations.append(_module_station("tests", tests))
+    return stations
+
+
+def _workflow_node(stage_id: str, label: str, description: str, module_id: str | None, files: list[str], index: int, total: int) -> ModuleGraphNode:
+    return ModuleGraphNode(
+        id=f"workflow:{stage_id}",
+        label=label,
+        description=description,
+        safety_label="Known area" if module_id else "Needs review",
+        x=_workflow_x(index, total),
+        y=50,
+        kind="pipeline-stage",
+        layer="workflow",
+        module_id=module_id,
+        files=files[:20],
+        metadata={"sequence": str(index + 1), "matched_files": str(len(files))},
+    )
+
+
+def _module_station(stage_id: str, module: ModuleHypothesis) -> dict[str, object]:
+    return {
+        "id": stage_id,
+        "label": module.display_name,
+        "description": module.simple_description,
+        "module_id": module.name,
+        "files": module.files[:20],
+    }
+
+
+def _workflow_stage_files(root: Path, scan: ScanResult, definitions: list[dict[str, object]]) -> dict[str, set[str]]:
+    stage_files = {str(stage["id"]): set() for stage in definitions}
     for rel_path, text in _workflow_corpus(root, scan):
         lowered = text.lower()
-        for stage in WORKFLOW_STAGE_DEFINITIONS:
+        for stage in definitions:
             stage_id = str(stage["id"])
             keywords = tuple(str(keyword) for keyword in stage["keywords"])
             if any(keyword in lowered for keyword in keywords):
@@ -420,10 +509,10 @@ def _workflow_corpus(root: Path, scan: ScanResult) -> list[tuple[str, str]]:
     return corpus
 
 
-def _has_workflow_story(stage_files: dict[str, set[str]]) -> bool:
-    heavy_stages = {"stem-splitter", "diarization", "transcription", "ai-cleanup"}
-    detected_heavy = [stage for stage in heavy_stages if stage_files.get(stage)]
-    return len(detected_heavy) >= 3 and bool(stage_files.get("transcription"))
+def _has_transcription_workflow(stage_files: dict[str, set[str]]) -> bool:
+    domain_stages = {"stem-splitter", "diarization", "transcription", "ai-cleanup"}
+    detected = {stage for stage in domain_stages if stage_files.get(stage)}
+    return "transcription" in detected and len(detected) >= 2
 
 
 def _dominant_workflow_module(stage_files: dict[str, set[str]], module_by_file: dict[str, str]) -> str | None:
@@ -436,6 +525,42 @@ def _dominant_workflow_module(stage_files: dict[str, set[str]], module_by_file: 
     if not counts:
         return None
     return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+
+
+def _dominant_node_module(nodes: list[ModuleGraphNode]) -> str | None:
+    counts: dict[str, int] = {}
+    for node in nodes:
+        if node.module_id:
+            counts[node.module_id] = counts.get(node.module_id, 0) + 1
+    if not counts:
+        return None
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+
+
+def _node_files(nodes: list[ModuleGraphNode]) -> list[str]:
+    return _unique([file for node in nodes for file in node.files])[:20]
+
+
+def _looks_like_data_file(node: ModuleGraphNode) -> bool:
+    path = (node.files[0] if node.files else node.metadata.get("path", node.label)).lower()
+    data_hints = ("db", "database", "sqlite", "schema", "migration", "storage", "store")
+    return any(hint in path for hint in data_hints)
+
+
+def _unique(items: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        if item not in seen:
+            out.append(item)
+            seen.add(item)
+    return out
+
+
+def _workflow_x(index: int, total: int) -> int:
+    if total <= 1:
+        return 50
+    return round(8 + (84 * index / (total - 1)))
 
 
 def _add_risk_nodes(modules: list[ModuleHypothesis], nodes: dict[str, ModuleGraphNode], links: dict[tuple[str, str, str], ModuleGraphLink]) -> None:

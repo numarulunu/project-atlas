@@ -86,3 +86,57 @@ def test_pipeline_story_maps_transcription_workflow_as_stations(sample_repo: Pat
         ("workflow:transcription", "workflow:ai-cleanup", "then"),
         ("workflow:ai-cleanup", "workflow:output", "then"),
     ]
+
+
+
+def test_generic_app_workflow_uses_real_project_parts_not_transcription_template(sample_repo: Path) -> None:
+    (sample_repo / "package.json").write_text(
+        '{"scripts":{"build":"vite build"},"dependencies":{"react":"latest","vite":"latest"}}',
+        encoding="utf-8",
+    )
+    (sample_repo / "app" / "api.py").write_text(
+        'from fastapi import FastAPI\nfrom app.core.governor import govern\n\napp = FastAPI()\n\n@app.post("/run")\ndef run_route() -> str:\n    return govern(" ok ")\n',
+        encoding="utf-8",
+    )
+    (sample_repo / "app" / "db.py").write_text(
+        'def save_result(value: str) -> None:\n    pass\n',
+        encoding="utf-8",
+    )
+
+    scan = scan_repo(sample_repo)
+    graph = build_module_graph(scan, infer_modules(scan))
+    labels = [node.label for node in graph.nodes if node.layer == "workflow"]
+
+    assert "Screen and buttons" in labels
+    assert "API routes" in labels
+    assert "Main engine" in labels
+    assert "Data and storage" in labels
+    assert "External tools" in labels
+    assert "Stem splitter" not in labels
+    assert "Speaker labels" not in labels
+    assert "Speech to text" not in labels
+    assert "Final transcript" not in labels
+
+
+def test_transcription_workflow_does_not_invent_missing_stations(sample_repo: Path) -> None:
+    (sample_repo / "requirements.txt").write_text(
+        "demucs\nopenai\nfaster-whisper\n",
+        encoding="utf-8",
+    )
+    (sample_repo / "app" / "pipeline.py").write_text(
+        "import demucs\nfrom faster_whisper import WhisperModel\nfrom openai import OpenAI\n\n"
+        "def process_video(video_file: str) -> str:\n"
+        "    vocals = separate_vocal_stem(video_file)\n"
+        "    transcript = transcribe_audio(vocals)\n"
+        "    return clean_transcript_with_ai(transcript)\n",
+        encoding="utf-8",
+    )
+
+    scan = scan_repo(sample_repo)
+    graph = build_module_graph(scan, infer_modules(scan))
+    labels = [node.label for node in graph.nodes if node.layer == "workflow"]
+
+    assert "Stem splitter" in labels
+    assert "Speech to text" in labels
+    assert "AI cleanup" in labels
+    assert "Speaker labels" not in labels

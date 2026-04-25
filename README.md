@@ -25,7 +25,7 @@ Open `http://127.0.0.1:5177`.
 
 1. Atlas auto-loads real project folders from common local work areas.
 2. Pick a project folder.
-3. Atlas draws a workflow story first when it detects one, with big stations like input, splitter, transcription, AI cleanup, and output. Other tabs keep grouped app parts, folders, tools, tests, and risk zones.
+3. Atlas draws a project-specific workflow story first. Transcription apps may show stations like input, splitter, transcription, AI cleanup, and output; other apps use their own screens, routes, commands, engine, storage, tools, and tests. Other tabs keep grouped app parts, folders, tools, tests, and risk zones.
 4. Click the station or node you want SMAC to inspect.
 5. Pick the job: `Diagnose bug`, `Audit quality`, or `Cleanup risk`.
 6. Click `Pull trigger`.
