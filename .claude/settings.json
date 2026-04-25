@@ -1,0 +1,12 @@
+﻿{
+  "respectGitIgnore": true,
+  "permissions": {
+    "allow": [
+      "Read(ProjectAtlas/**)",
+      "Edit(ProjectAtlas/**)",
+      "Bash(python -m pytest*)",
+      "Bash(npm test*)",
+      "Bash(npm run build*)"
+    ]
+  }
+}

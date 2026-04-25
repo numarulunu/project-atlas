@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-atlas"
+version = "0.2.1"
+description = "Read-only local codebase atlas and SMAC sniper prompt builder"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = "MIT"
+authors = [{ name = "Ionut Rosu" }]
+dependencies = ["fastapi>=0.115", "uvicorn>=0.32", "pydantic>=2.11"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "httpx>=0.28"]
+
+[project.scripts]
+atlas = "atlas_backend.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["atlas_backend*"]
+exclude = ["tests*", "dashboard*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+  "ignore:.*asyncio.iscoroutinefunction.*:DeprecationWarning:starlette.*",
+  "ignore:.*asyncio.iscoroutinefunction.*:DeprecationWarning:fastapi.*",
+]
